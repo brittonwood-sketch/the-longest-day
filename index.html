@@ -1,0 +1,1490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>The Longest Day — D-Day 1944</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+  :root{
+    --paper:#e8e0c9; --ink:#1d1a12; --olive:#4b5320; --khaki:#8a7d52;
+    --blood:#8c2f23; --steel:#3a4148; --stencil:#d9d2b8;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{width:100%;height:100%;overflow:hidden;background:#0c0e10;
+    font-family:Georgia,'Times New Roman',serif;color:var(--ink);
+    -webkit-user-select:none;user-select:none;touch-action:none;}
+  #game{position:fixed;inset:0;}
+  canvas{display:block;}
+
+  /* ---------- screens ---------- */
+  .screen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 35%,#23282b 0%,#0c0e10 75%);z-index:40;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);}
+  .hidden{display:none !important;}
+  .doc{background:var(--paper);max-width:680px;width:92%;max-height:92%;overflow-y:auto;
+    -webkit-overflow-scrolling:touch;padding:26px 30px;border:1px solid #b3a87f;
+    box-shadow:0 18px 60px rgba(0,0,0,.7), inset 0 0 80px rgba(120,100,50,.18);}
+  .doc .stamp{display:inline-block;border:3px double var(--blood);color:var(--blood);
+    padding:2px 10px;font-family:'Courier New',monospace;font-weight:bold;letter-spacing:3px;
+    transform:rotate(-3deg);font-size:13px;margin-bottom:10px;}
+  .doc h1{font-family:'Courier New',monospace;font-size:26px;letter-spacing:2px;line-height:1.15;}
+  .doc h2{font-family:'Courier New',monospace;font-size:15px;letter-spacing:1px;margin:14px 0 6px;
+    border-bottom:1px solid var(--khaki);padding-bottom:3px;}
+  .doc p{font-size:15px;line-height:1.5;margin:8px 0;}
+  .doc .meta{font-family:'Courier New',monospace;font-size:12px;color:#5a523a;margin:4px 0 12px;}
+  .unit-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;}
+  @media(max-width:560px){.unit-grid{grid-template-columns:1fr;}}
+  .unit-card{border:1.5px solid var(--olive);background:rgba(75,83,32,.07);padding:10px 12px;
+    cursor:pointer;transition:background .15s;}
+  .unit-card:hover,.unit-card:active{background:rgba(75,83,32,.22);}
+  .unit-card .nation{font-family:'Courier New',monospace;font-size:11px;letter-spacing:2px;color:var(--blood);}
+  .unit-card .uname{font-weight:bold;font-size:16px;margin:2px 0;}
+  .unit-card .obj{font-size:12.5px;color:#46402c;line-height:1.35;}
+  .btn{display:inline-block;font-family:'Courier New',monospace;font-weight:bold;font-size:15px;
+    letter-spacing:2px;background:var(--olive);color:var(--stencil);border:none;
+    padding:12px 26px;margin-top:16px;cursor:pointer;}
+  .btn:active{transform:translateY(1px);}
+  .btn.secondary{background:#6b6147;}
+
+  /* ---------- history card ---------- */
+  #historyCard .doc{border-left:6px solid var(--blood);}
+  .hist-label{font-family:'Courier New',monospace;font-size:11px;letter-spacing:3px;color:var(--blood);}
+
+  /* ---------- HUD ---------- */
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:20;display:none;
+    font-family:'Courier New',monospace;}
+  #crosshair{position:absolute;left:50%;top:50%;width:18px;height:18px;transform:translate(-50%,-50%);}
+  #crosshair:before,#crosshair:after{content:'';position:absolute;background:rgba(232,224,201,.9);}
+  #crosshair:before{left:8px;top:0;width:2px;height:18px;}
+  #crosshair:after{top:8px;left:0;height:2px;width:18px;}
+  #objective{position:absolute;top:calc(10px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);
+    background:rgba(20,22,16,.72);color:var(--stencil);padding:7px 16px;font-size:13px;
+    letter-spacing:1px;border:1px solid rgba(217,210,184,.35);max-width:88%;text-align:center;}
+  #statbar{position:absolute;left:calc(14px + env(safe-area-inset-left));bottom:calc(14px + env(safe-area-inset-bottom));
+    background:rgba(20,22,16,.72);padding:8px 12px;border:1px solid rgba(217,210,184,.3);color:var(--stencil);}
+  #hpOuter{width:150px;height:10px;background:#3a3326;border:1px solid #777;margin-bottom:5px;}
+  #hpInner{height:100%;width:100%;background:#7a8a3a;}
+  #ammo{font-size:14px;letter-spacing:2px;}
+  #msg{position:absolute;left:50%;top:62%;transform:translateX(-50%);color:var(--stencil);
+    background:rgba(20,22,16,.7);padding:6px 14px;font-size:13px;letter-spacing:1px;opacity:0;
+    transition:opacity .3s;max-width:88%;text-align:center;}
+  #dmgVignette{position:fixed;inset:0;pointer-events:none;z-index:25;opacity:0;
+    background:radial-gradient(ellipse at center,transparent 45%,rgba(140,20,10,.65) 100%);
+    transition:opacity .25s;}
+  #kills{position:absolute;right:calc(14px + env(safe-area-inset-right));top:calc(10px + env(safe-area-inset-top));
+    color:var(--stencil);background:rgba(20,22,16,.72);padding:6px 12px;font-size:12px;
+    border:1px solid rgba(217,210,184,.3);letter-spacing:1px;}
+
+  /* ---------- touch controls ---------- */
+  .touchUI{display:none;}
+  body.touch .touchUI{display:block;}
+  #stick{position:fixed;left:calc(26px + env(safe-area-inset-left));bottom:calc(86px + env(safe-area-inset-bottom));
+    width:120px;height:120px;border-radius:50%;border:2px solid rgba(217,210,184,.4);
+    background:rgba(20,22,16,.25);z-index:30;pointer-events:auto;}
+  #stickKnob{position:absolute;left:50%;top:50%;width:52px;height:52px;border-radius:50%;
+    background:rgba(217,210,184,.45);transform:translate(-50%,-50%);}
+  .tbtn{position:fixed;z-index:30;pointer-events:auto;border-radius:50%;
+    border:2px solid rgba(217,210,184,.5);background:rgba(75,83,32,.55);
+    color:var(--stencil);font-family:'Courier New',monospace;font-weight:bold;
+    display:flex;align-items:center;justify-content:center;letter-spacing:1px;}
+  #fireBtn{right:calc(28px + env(safe-area-inset-right));bottom:calc(96px + env(safe-area-inset-bottom));
+    width:96px;height:96px;font-size:15px;background:rgba(140,47,35,.55);}
+  #reloadBtn{right:calc(140px + env(safe-area-inset-right));bottom:calc(66px + env(safe-area-inset-bottom));
+    width:62px;height:62px;font-size:11px;}
+  #actionBtn{right:calc(54px + env(safe-area-inset-right));bottom:calc(210px + env(safe-area-inset-bottom));
+    width:78px;height:78px;font-size:12px;background:rgba(58,65,72,.65);display:none;}
+
+  #lowVignette{position:fixed;inset:0;pointer-events:none;z-index:24;opacity:0;
+    background:radial-gradient(ellipse at center,transparent 40%,rgba(120,15,8,.7) 100%);
+    transition:opacity .6s;animation:lowpulse 1.6s infinite;}
+  @keyframes lowpulse{0%,100%{filter:brightness(1);}50%{filter:brightness(1.5);}}
+  #jumpBtn{right:calc(150px + env(safe-area-inset-right));bottom:calc(150px + env(safe-area-inset-bottom));
+    width:62px;height:62px;font-size:11px;}
+  body.touch #statbar{bottom:auto;top:calc(52px + env(safe-area-inset-top));}
+  #hpOuter{width:200px !important;}
+  #hpRow{display:flex;justify-content:space-between;font-size:12px;letter-spacing:1px;margin-bottom:3px;}
+  #pauseHint{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:35;
+    color:var(--stencil);background:rgba(20,22,16,.85);padding:16px 26px;display:none;
+    font-family:'Courier New',monospace;letter-spacing:1px;border:1px solid rgba(217,210,184,.4);}
+</style>
+</head>
+<body>
+<div id="game"></div>
+<div id="dmgVignette"></div>
+<div id="lowVignette"></div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="crosshair"></div>
+  <div id="objective">OBJECTIVE</div>
+  <div id="kills">ENEMY: 0</div>
+  <div id="statbar">
+    <div id="hpRow"><span id="hpLabel">OK</span><span id="hpNum">100</span></div>
+    <div id="hpOuter"><div id="hpInner"></div></div>
+    <div id="ammo">M1 GARAND &nbsp;8 / 8</div>
+  </div>
+  <div id="msg"></div>
+</div>
+
+<!-- touch controls -->
+<div class="touchUI">
+  <div id="stick"><div id="stickKnob"></div></div>
+  <div id="fireBtn" class="tbtn">FIRE</div>
+  <div id="reloadBtn" class="tbtn">RELOAD</div>
+  <div id="actionBtn" class="tbtn">HOLD</div>
+  <div id="jumpBtn" class="tbtn">JUMP</div>
+</div>
+
+<div id="pauseHint">CLICK TO RESUME</div>
+
+<!-- MENU -->
+<div id="menu" class="screen">
+  <div class="doc">
+    <div class="stamp">TOP SECRET — BIGOT</div>
+    <h1>OPERATION OVERLORD<br>THE LONGEST DAY</h1>
+    <div class="meta">SHAEF — SUPREME HEADQUARTERS ALLIED EXPEDITIONARY FORCE<br>6 JUNE 1944 — NORMANDY, FRANCE</div>
+    <p>Soldier: you are about to embark upon the Great Crusade. Select your unit. Each assignment follows the real path that unit took on D-Day.</p>
+    <h2>SELECT YOUR UNIT</h2>
+    <div class="unit-grid" id="unitGrid"></div>
+    <p class="meta" style="margin-top:14px">Mac: WASD move · mouse look · click fire · R reload · E action · SPACE jump · F fullscreen<br>iPad: left stick move · drag right side to look · FIRE / JUMP / RELOAD buttons</p>
+    <button class="btn secondary" id="fsBtn" style="margin-top:6px">⛶ FULL SCREEN</button>
+  </div>
+</div>
+
+<!-- BRIEFING -->
+<div id="briefing" class="screen hidden">
+  <div class="doc">
+    <div class="stamp">OPERATION ORDER</div>
+    <h1 id="briefTitle"></h1>
+    <div class="meta" id="briefMeta"></div>
+    <div id="briefBody"></div>
+    <button class="btn" id="deployBtn">COMMENCE OPERATION</button>
+    <button class="btn secondary" id="backBtn">BACK</button>
+  </div>
+</div>
+
+<!-- HISTORY CARD -->
+<div id="historyCard" class="screen hidden">
+  <div class="doc">
+    <div class="hist-label">FROM THE HISTORICAL RECORD</div>
+    <h1 id="histTitle" style="font-size:20px;margin-top:6px;"></h1>
+    <div id="histBody"></div>
+    <button class="btn" id="histBtn">CONTINUE</button>
+  </div>
+</div>
+
+<!-- END SCREEN -->
+<div id="endScreen" class="screen hidden">
+  <div class="doc">
+    <div class="stamp" id="endStamp">MISSION COMPLETE</div>
+    <h1 id="endTitle"></h1>
+    <div id="endBody"></div>
+    <button class="btn" id="endBtn">RETURN TO HEADQUARTERS</button>
+  </div>
+</div>
+
+<script>
+// ---------------- UNIT & HISTORY DATA ----------------
+const UNITS = [
+  {
+    id:'us29', nation:'UNITED STATES', name:'29th Infantry Division', type:'beach',
+    obj:'Assault Omaha Beach, Dog Green sector. H-Hour 0630.',
+    weapon:'M1 GARAND', clip:8,
+    briefTitle:'OMAHA BEACH — DOG GREEN',
+    briefMeta:'116th INFANTRY REGIMENT, 29th DIVISION · H-HOUR 0630 · 6 JUNE 1944',
+    brief:`<p>Your Higgins boat will land you on Dog Green sector, Omaha Beach, directly under the Vierville draw. Cross 300 yards of open sand under fire, reach the shingle bank, breach the wire with a bangalore torpedo, silence the strongpoint above, and move up the draw.</p><p>The 29th is going into combat for the first time. Many of you are from the same small Virginia towns. Good luck — and keep moving. The beach is the kill zone.</p>`,
+    enemyLabel:'WN-71 GARRISON',
+    notes:{
+      start:{t:'06:30 — THE FIRST WAVE', b:`<p>At H-Hour the first wave of the 116th Infantry approached Omaha in plywood Higgins boats (LCVPs). The pre-landing bombardment had largely missed the German defenses, and the troops landed in front of nearly intact strongpoints. Company A of the 116th — including 19 young men from the single town of Bedford, Virginia — suffered devastating losses in the first minutes.</p>`},
+      seawall:{t:'THE SHINGLE BANK', b:`<p>Survivors of the first waves piled up against a low bank of stones at the head of the beach — the only cover on Omaha. There, Brigadier General Norman Cota of the 29th Division walked upright among the men and famously growled that two kinds of people were staying on that beach: the dead, and those about to die — so they had better get moving. Small groups began to do exactly that.</p>`},
+      wire:{t:'BANGALORE TORPEDOES', b:`<p>Engineers and infantrymen blew gaps in the barbed wire above the shingle using bangalore torpedoes — explosive charges in connecting metal tubes pushed under the wire. Each gap became a funnel for men climbing toward the bluffs, often under machine-gun fire from the strongpoints flanking the draws.</p>`},
+      bunkers:{t:'WIDERSTANDSNEST 71', b:`<p>The exits off Omaha were ravines — "draws" — each guarded by numbered German resistance nests (Widerstandsnester) with concrete gun casemates, mortars and MG-42 machine guns sited to sweep the beach. Rather than attack the draws head-on, small groups scaled the bluffs between them and took the strongpoints from behind.</p>`},
+      end:{t:'BLOODY OMAHA', b:`<p>Omaha cost roughly 2,400 American casualties on D-Day — the highest of any beach — yet by nightfall more than 34,000 men were ashore and the beachhead, though shallow, held. The town of Vierville-sur-Mer was cleared that afternoon by men of the 116th and the Rangers who had landed beside them.</p>`}
+    }
+  },
+  {
+    id:'uk3', nation:'UNITED KINGDOM', name:'3rd Infantry Division', type:'beach',
+    obj:'Assault Sword Beach, Queen sector. Drive inland toward Caen.',
+    weapon:'LEE-ENFIELD', clip:10,
+    briefTitle:'SWORD BEACH — QUEEN RED',
+    briefMeta:'8th BRIGADE, BRITISH 3rd DIVISION · H-HOUR 0725 · 6 JUNE 1944',
+    brief:`<p>You land on Queen sector, Sword Beach, near Hermanville-sur-Mer. Clear the beach obstacles, breach the wire, and silence strongpoint COD overlooking the seafront. Lord Lovat's commandos land behind you — they must pass through to relieve the airborne troops holding the bridges over the Orne.</p>`,
+    enemyLabel:'STRONGPOINT COD',
+    notes:{
+      start:{t:'07:25 — SWORD BEACH', b:`<p>The British 3rd Division landed on Sword at 0725 with amphibious DD Sherman tanks swimming in alongside the infantry. On this beach, Brigadier Lord Lovat's 1st Special Service Brigade came ashore with his personal piper, Bill Millin, playing the bagpipes in the surf — at Lovat's order and against regulations.</p>`},
+      seawall:{t:'THE SEAFRONT VILLAS', b:`<p>Unlike Omaha's bluffs, Sword was fronted by seaside holiday villas the Germans had fortified. The strongpoint code-named COD anchored the defense of Queen sector with anti-tank guns and machine-gun posts, and took nearly an hour of close fighting to subdue.</p>`},
+      wire:{t:'HOBART\'S FUNNIES', b:`<p>British beaches benefited from the 79th Armoured Division's specialist vehicles — "Hobart's Funnies" — flail tanks that beat paths through minefields, bridge-layers, and AVREs that hurled demolition charges at concrete. Many historians credit them with keeping British casualties on D-Day far lower than at Omaha.</p>`},
+      bunkers:{t:'PUSH FOR CAEN', b:`<p>3rd Division's D-Day objective was ambitious: the city of Caen, nine miles inland. German resistance and a counterattack by the 21st Panzer Division — the only German armoured counterattack of the day — stopped the advance short. Caen would not fall for over a month.</p>`},
+      end:{t:'LINK-UP AT THE BRIDGES', b:`<p>By early afternoon Lovat's commandos had marched inland from Sword and relieved the glider troops of the 6th Airborne holding Pegasus Bridge, Millin's pipes announcing their arrival. Sword's beachhead was secure, with nearly 29,000 men ashore by midnight.</p>`}
+    }
+  },
+  {
+    id:'ca3', nation:'CANADA', name:'3rd Canadian Infantry Division', type:'beach',
+    obj:'Assault Juno Beach at Bernières-sur-Mer. Push furthest inland.',
+    weapon:'LEE-ENFIELD', clip:10,
+    briefTitle:'JUNO BEACH — NAN WHITE',
+    briefMeta:`QUEEN'S OWN RIFLES OF CANADA · H-HOUR 0745 · 6 JUNE 1944`,
+    brief:`<p>You land at Bernières-sur-Mer on Nan White sector, Juno Beach. The tide is late and high — the boats will come in among the obstacles. Cross the beach, breach the wire at the seawall, clear the fortified houses, and push inland. Canada has a score to settle from Dieppe.</p>`,
+    enemyLabel:'BERNIÈRES GARRISON',
+    notes:{
+      start:{t:'07:45 — JUNO', b:`<p>Rough seas delayed the Canadian landings, and the rising tide hid the beach obstacles — nearly a third of the landing craft at Juno were damaged or destroyed by mined obstacles. The Queen's Own Rifles, landing in front of an untouched strongpoint at Bernières, suffered the worst rifle-company losses of any Canadian unit that day.</p>`},
+      seawall:{t:'THE SEAWALL', b:`<p>At Bernières the Canadians faced a stone seawall up to twelve feet high. Riflemen crossed the open sand in under two minutes — those who made it — and grenaded their way over the wall into the fortified seafront houses beyond. The famous half-timbered house in so many landing photographs still stands there today.</p>`},
+      wire:{t:'REMEMBER DIEPPE', b:`<p>For Canada, D-Day carried the memory of the disastrous 1942 Dieppe raid, where over 900 Canadians died on a defended French beach. The lessons of Dieppe — armour with the first wave, overwhelming fire support, never assault a port head-on — shaped the entire Overlord plan.</p>`},
+      bunkers:{t:'CLEARING THE TOWN', b:`<p>Fighting at Juno moved quickly from the sand into the streets — house-to-house clearing through Bernières and Courseulles, supported by the DD tanks of the Fort Garry Horse and 1st Hussars that had survived the swim in.</p>`},
+      end:{t:'FURTHEST OF ANY', b:`<p>By nightfall on D-Day, lead elements of the 3rd Canadian Division had pushed closer to their final objectives than any other Allied division — patrols of the 9th Brigade reached within sight of the Caen–Bayeux highway. Some 21,400 Canadians landed on Juno on 6 June.</p>`}
+    }
+  },
+  {
+    id:'us101', nation:'UNITED STATES', name:'101st Airborne Division', type:'airborne',
+    obj:'Night drop behind Utah Beach. Seize the causeway exits.',
+    weapon:'M1 CARBINE', clip:15,
+    briefTitle:'NIGHT DROP — DROP ZONE C',
+    briefMeta:'506th PARACHUTE INFANTRY, 101st AIRBORNE · 0130 HOURS · 6 JUNE 1944',
+    brief:`<p>You jump at 0130, five hours before the seaborne landings, into the fields behind Utah Beach. The drop will scatter the division — assemble whoever you can find, clear the village on Drop Zone C, and seize the causeway exit so the 4th Infantry Division can get off Utah Beach at dawn. Your recognition signal is a brass cricket: one click, answered by two.</p>`,
+    enemyLabel:'VILLAGE GARRISON',
+    notes:{
+      land:{t:'0130 — SCATTERED TO THE WINDS', b:`<p>Flak, cloud banks and inexperienced pilots scattered the 101st across hundreds of square miles of Normandy. By dawn, only about a third of the division had assembled. Improvised groups of strangers — cooks, clerks, riflemen from three different regiments — formed up in the dark using brass cricket clickers and the challenge "Flash," answered by "Thunder."</p>`},
+      regroup:{t:'LITTLE GROUPS OF PARATROOPERS', b:`<p>Ironically, the scattered drop helped paralyze the German response: reports of paratroopers came from everywhere at once, and German commanders could not find a pattern. Small leaderless groups — "LGOPs," the men later joked — attacked whatever they found, cutting wires and ambushing couriers all over the Cotentin peninsula.</p>`},
+      village:{t:'THE CAUSEWAYS', b:`<p>The Germans had flooded the low ground behind Utah Beach, leaving only four narrow causeways off the sand. The 101st's entire D-Day mission boiled down to holding the western ends of those causeways. At Exit 1 near Pouppeville, men under General Maxwell Taylor — the first Allied division commander into France — cleared the village house by house.</p>`},
+      end:{t:'LINK-UP AT THE CAUSEWAY', b:`<p>Around noon, paratroopers at Pouppeville met tanks of the 4th Infantry Division coming up Exit 1 from Utah Beach — the first link-up between the airborne and seaborne invasions. Utah cost the fewest casualties of any beach, in large part because the 101st held the exits behind it.</p>`}
+    }
+  },
+  {
+    id:'us82', nation:'UNITED STATES', name:'82nd Airborne Division', type:'airborne',
+    obj:'Night drop on Sainte-Mère-Église. Liberate the first town in France.',
+    weapon:'M1 CARBINE', clip:15,
+    briefTitle:'NIGHT DROP — SAINTE-MÈRE-ÉGLISE',
+    briefMeta:'505th PARACHUTE INFANTRY, 82nd AIRBORNE · 0140 HOURS · 6 JUNE 1944',
+    brief:`<p>You jump at 0140 onto Drop Zone O, beside the crossroads town of Sainte-Mère-Église. The town sits on the main road artery of the Cotentin peninsula — take it, hold it, and the German divisions to the north are cut off from the beaches. Assemble after the drop, clear the town square, and secure the church.</p>`,
+    enemyLabel:'TOWN GARRISON',
+    notes:{
+      land:{t:'0140 — FIRE IN THE SQUARE', b:`<p>A house fire was burning on the town square as the 505th jumped, and German soldiers and townsfolk fighting the fire looked up to see parachutes drifting down into the light. Private John Steele's canopy snagged on the church steeple; he hung there feigning death through the firefight below and survived. A parachute hangs from that steeple to this day in his honor.</p>`},
+      regroup:{t:'THE 505th ASSEMBLES', b:`<p>Unlike most units that night, the veteran 505th — jumping into its third combat drop after Sicily and Italy — landed compactly on its drop zone. Lt. Col. Edward Krause gathered roughly a hundred men and moved on the town immediately, guided by a local Frenchman, with orders to use only grenades, knives and bayonets in the dark so that anyone firing a rifle was known to be German.</p>`},
+      village:{t:'FIRST TOWN LIBERATED', b:`<p>By roughly 0500 on 6 June, Krause's men had cleared Sainte-Mère-Église and raised over the town hall the same American flag the battalion had flown over Naples — making it among the very first towns liberated in France, hours before the beach landings began.</p>`},
+      end:{t:'HOLD UNTIL RELIEVED', b:`<p>German counterattacks hammered Sainte-Mère-Église all day on 6 June, and the 505th held the town alone until tanks from Utah Beach broke through on the morning of 7 June. The 82nd went on to fight 33 straight days in Normandy without relief.</p>`}
+    }
+  }
+];
+
+// ---------------- GLOBALS ----------------
+let scene, camera, renderer, clock;
+let unit = null;            // selected unit data
+let state = 'menu';         // menu | briefing | playing | paused | note | end
+let world = null;           // current mission object
+const IS_TOUCH = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+if (IS_TOUCH) document.body.classList.add('touch');
+
+const player = {
+  pos: new THREE.Vector3(), yaw: 0, pitch: 0,
+  hp: 100, ammo: 8, clip: 8, reserve: Infinity,
+  reloading: false, lastHurt: 0, speed: 6.2,
+  grounded: true, vy: 0
+};
+
+const input = { f:0,b:0,l:0,r:0, fire:false, action:false,
+  stick:{x:0,y:0}, lookDX:0, lookDY:0 };
+
+// ---------------- RENDERER ----------------
+function initRenderer(){
+  renderer = new THREE.WebGLRenderer({ antialias:true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = false;
+  document.getElementById('game').appendChild(renderer.domElement);
+  camera = new THREE.PerspectiveCamera(72, window.innerWidth/window.innerHeight, 0.1, 1200);
+  clock = new THREE.Clock();
+  window.addEventListener('resize', ()=>{
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+}
+
+// ---------------- AUDIO (tiny synth) ----------------
+let AC = null;
+function audio(){ if(!AC){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} } return AC; }
+function sfx(type){
+  const ctx = audio(); if(!ctx) return;
+  if (ctx.state === 'suspended') ctx.resume();
+  const t = ctx.currentTime;
+  if (type==='shot' || type==='eshot' || type==='distant'){
+    // layered gunshot: sharp noise crack + low-frequency thump
+    const big = type==='shot';
+    const len = big? 0.16 : 0.1;
+    const buf = ctx.createBuffer(1, ctx.sampleRate*len, ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i=0;i<d.length;i++) d[i] = (Math.random()*2-1) * Math.pow(1-i/d.length, 2.0);
+    const src = ctx.createBufferSource(); src.buffer = buf;
+    const f = ctx.createBiquadFilter(); f.type='lowpass';
+    f.frequency.value = type==='shot'? 2400 : (type==='eshot'? 1100 : 300);
+    const g = ctx.createGain();
+    g.gain.value = type==='shot'? 0.55 : (type==='eshot'? 0.2 : 0.14);
+    src.connect(f); f.connect(g); g.connect(ctx.destination); src.start(t);
+    // thump layer
+    const o = ctx.createOscillator(), og = ctx.createGain();
+    o.type='sine';
+    o.frequency.setValueAtTime(big? 150 : 90, t);
+    o.frequency.exponentialRampToValueAtTime(big? 55 : 40, t+0.18);
+    og.gain.setValueAtTime(big? 0.4 : 0.12, t);
+    og.gain.exponentialRampToValueAtTime(0.001, t+(big?0.22:0.3));
+    o.connect(og); og.connect(ctx.destination); o.start(t); o.stop(t+0.32);
+  } else if (type==='ping'){ // Garand clip ping
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type='triangle'; o.frequency.setValueAtTime(2300,t);
+    o.frequency.exponentialRampToValueAtTime(1700,t+0.25);
+    g.gain.setValueAtTime(0.18,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.3);
+    o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+0.32);
+  } else if (type==='boom'){
+    const len=0.7, buf=ctx.createBuffer(1,ctx.sampleRate*len,ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3);
+    const src=ctx.createBufferSource(); src.buffer=buf;
+    const f=ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=240;
+    const g=ctx.createGain(); g.gain.value=0.6;
+    src.connect(f); f.connect(g); g.connect(ctx.destination); src.start(t);
+  } else if (type==='click'){
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='square'; o.frequency.value=900;
+    g.gain.setValueAtTime(0.08,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.05);
+    o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+0.06);
+  } else if (type==='hurt'){
+    const o=ctx.createOscillator(), g=ctx.createGain();
+    o.type='sawtooth'; o.frequency.setValueAtTime(180,t);
+    o.frequency.exponentialRampToValueAtTime(70,t+0.18);
+    g.gain.setValueAtTime(0.15,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.2);
+    o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+0.22);
+  }
+}
+
+
+function jump(){
+  if (state!=='playing' || !world) return;
+  if (world.phase==='boat'||world.phase==='rampdrop'||world.phase==='descent') return;
+  if (player.grounded){ player.vy = 8; player.grounded = false; }
+}
+
+// MG-42 style burst for enemy fire
+function mgBurst(){
+  sfx('eshot');
+  setTimeout(()=>sfx('eshot'), 75);
+  setTimeout(()=>sfx('eshot'), 150);
+}
+// looping low battle rumble + occasional distant artillery
+let ambNodes = null, distantTimer = null;
+function startAmbience(){
+  const ctx = audio(); if (!ctx || ambNodes) { if(distantTimer===null && ctx) startDistant(); return; }
+  if (ctx.state==='suspended') ctx.resume();
+  const len = 2.5, buf = ctx.createBuffer(1, ctx.sampleRate*len, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i=0;i<d.length;i++) d[i] = Math.random()*2-1;
+  const src = ctx.createBufferSource(); src.buffer = buf; src.loop = true;
+  const f = ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value = 220;
+  const g = ctx.createGain(); g.gain.value = 0.05;
+  src.connect(f); f.connect(g); g.connect(ctx.destination); src.start();
+  ambNodes = {src,g};
+  startDistant();
+}
+function startDistant(){
+  if (distantTimer) return;
+  distantTimer = setInterval(()=>{
+    if (state==='playing') sfx('distant');
+  }, 6000);
+}
+
+function toggleFS(){
+  const el = document.documentElement;
+  const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+  if (!fsEl){
+    const req = el.requestFullscreen || el.webkitRequestFullscreen;
+    if (req) req.call(el);
+  } else {
+    const ex = document.exitFullscreen || document.webkitExitFullscreen;
+    if (ex) ex.call(document);
+  }
+}
+// ---------------- INPUT ----------------
+function initInput(){
+  // keyboard
+  window.addEventListener('keydown', e=>{
+    if (state!=='playing') return;
+    if (e.code==='KeyW'||e.code==='ArrowUp') input.f=1;
+    if (e.code==='KeyS'||e.code==='ArrowDown') input.b=1;
+    if (e.code==='KeyA'||e.code==='ArrowLeft') input.l=1;
+    if (e.code==='KeyD'||e.code==='ArrowRight') input.r=1;
+    if (e.code==='KeyR') reload();
+    if (e.code==='KeyE') input.action=true;
+    if (e.code==='Space'){ e.preventDefault(); jump(); }
+    if (e.code==='KeyF') toggleFS();
+  });
+  window.addEventListener('keyup', e=>{
+    if (e.code==='KeyW'||e.code==='ArrowUp') input.f=0;
+    if (e.code==='KeyS'||e.code==='ArrowDown') input.b=0;
+    if (e.code==='KeyA'||e.code==='ArrowLeft') input.l=0;
+    if (e.code==='KeyD'||e.code==='ArrowRight') input.r=0;
+    if (e.code==='KeyE') input.action=false;
+  });
+  // mouse / pointer lock (desktop)
+  const el = renderer.domElement;
+  el.addEventListener('click', ()=>{
+    if (IS_TOUCH) return;
+    if (state==='playing' && document.pointerLockElement!==el) el.requestPointerLock();
+  });
+  document.addEventListener('pointerlockchange', ()=>{
+    if (IS_TOUCH) return;
+    const locked = document.pointerLockElement===el;
+    document.getElementById('pauseHint').style.display =
+      (state==='playing' && !locked) ? 'block' : 'none';
+  });
+  document.addEventListener('mousemove', e=>{
+    if (IS_TOUCH || state!=='playing') return;
+    if (document.pointerLockElement!==renderer.domElement) return;
+    input.lookDX += e.movementX; input.lookDY += e.movementY;
+  });
+  document.addEventListener('mousedown', e=>{
+    if (IS_TOUCH || state!=='playing') return;
+    if (document.pointerLockElement===renderer.domElement && e.button===0) input.fire=true;
+  });
+  document.addEventListener('mouseup', e=>{ if(e.button===0) input.fire=false; });
+
+  if (IS_TOUCH) initTouch();
+}
+
+function initTouch(){
+  const stick = document.getElementById('stick');
+  const knob = document.getElementById('stickKnob');
+  let stickId = null, lookId = null, lookLast = null;
+
+  function stickMove(touch){
+    const r = stick.getBoundingClientRect();
+    const cx = r.left + r.width/2, cy = r.top + r.height/2;
+    let dx = touch.clientX-cx, dy = touch.clientY-cy;
+    const max = r.width/2 - 10, len = Math.hypot(dx,dy);
+    if (len>max){ dx = dx/len*max; dy = dy/len*max; }
+    knob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+    input.stick.x = dx/max; input.stick.y = dy/max;
+  }
+  function stickReset(){
+    knob.style.transform = 'translate(-50%,-50%)';
+    input.stick.x = 0; input.stick.y = 0;
+  }
+  window.addEventListener('touchstart', e=>{
+    for (const t of e.changedTouches){
+      const r = stick.getBoundingClientRect();
+      const onStick = t.clientX>=r.left-20 && t.clientX<=r.right+20 &&
+                      t.clientY>=r.top-20 && t.clientY<=r.bottom+20;
+      const onBtn = t.target.classList && t.target.classList.contains('tbtn');
+      if (onStick && stickId===null){ stickId=t.identifier; stickMove(t); }
+      else if (!onBtn && lookId===null && t.clientX > window.innerWidth*0.35){
+        lookId = t.identifier; lookLast = {x:t.clientX, y:t.clientY};
+      }
+    }
+  }, {passive:false});
+  window.addEventListener('touchmove', e=>{
+    if (state!=='playing') return;
+    e.preventDefault();
+    for (const t of e.changedTouches){
+      if (t.identifier===stickId) stickMove(t);
+      else if (t.identifier===lookId && lookLast){
+        input.lookDX += (t.clientX-lookLast.x)*2.0;
+        input.lookDY += (t.clientY-lookLast.y)*2.0;
+        lookLast = {x:t.clientX, y:t.clientY};
+      }
+    }
+  }, {passive:false});
+  function touchEnd(e){
+    for (const t of e.changedTouches){
+      if (t.identifier===stickId){ stickId=null; stickReset(); }
+      if (t.identifier===lookId){ lookId=null; lookLast=null; }
+    }
+  }
+  window.addEventListener('touchend', touchEnd);
+  window.addEventListener('touchcancel', touchEnd);
+
+  const bindBtn = (id, down, up)=>{
+    const b = document.getElementById(id);
+    b.addEventListener('touchstart', e=>{ e.preventDefault(); down(); }, {passive:false});
+    b.addEventListener('touchend',   e=>{ e.preventDefault(); if(up) up(); }, {passive:false});
+  };
+  bindBtn('fireBtn', ()=>{ input.fire=true; }, ()=>{ input.fire=false; });
+  bindBtn('reloadBtn', ()=>reload());
+  bindBtn('actionBtn', ()=>{ input.action=true; }, ()=>{ input.action=false; });
+  bindBtn('jumpBtn', ()=>jump());
+}
+
+// ---------------- BUILD HELPERS ----------------
+const MAT = {};
+function mat(c, rough){ const k=c+''+rough; if(!MAT[k]) MAT[k]=new THREE.MeshLambertMaterial({color:c}); return MAT[k]; }
+function box(w,h,d,c,x,y,z,ry){
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat(c));
+  m.position.set(x,y,z); if(ry) m.rotation.y = ry; return m;
+}
+
+// low-poly soldier with nation-specific uniform, helmet and a simple face.
+// faction: 'de' German (feldgrau + Stahlhelm), 'us' (olive drab + M1),
+// 'uk'/'ca' (khaki battledress + Brodie helmet)
+const SKIN_TONES = [0xc8a482,0xbf9b76,0x9a6f4b,0xd9b48f];
+const FACTIONS = {
+  de:{uni:0x4e5a48, legs:0x444f3e, helm:0x3c4238, style:'stahlhelm'},
+  us:{uni:0x6b6a4f, legs:0x8a7a55, helm:0x4f5440, style:'m1'},
+  uk:{uni:0x7a6c47, legs:0x6b5e3d, helm:0x575239, style:'brodie'},
+  ca:{uni:0x7a6c47, legs:0x6b5e3d, helm:0x575239, style:'brodie'}
+};
+function buildSoldier(faction){
+  const cfg = FACTIONS[faction] || FACTIONS.us;
+  const g = new THREE.Group();
+  g.add(box(0.5,0.75,0.3,cfg.legs,0,0.37,0));            // trousers
+  g.add(box(0.55,0.8,0.34,cfg.uni,0,0.95,0));            // tunic
+  g.add(box(0.57,0.1,0.36,0x3b3526,0,0.62,0));           // belt
+  g.add(box(0.1,0.5,0.06,0x4a432f,-0.15,1.08,0.18));     // webbing straps
+  g.add(box(0.1,0.5,0.06,0x4a432f, 0.15,1.08,0.18));
+  g.add(box(0.16,0.6,0.18,cfg.uni,-0.38,1.0,0));         // arms
+  g.add(box(0.16,0.6,0.18,cfg.uni, 0.38,1.0,0));
+  const skin = SKIN_TONES[Math.floor(Math.random()*SKIN_TONES.length)];
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.18,10,10),
+    new THREE.MeshLambertMaterial({color:skin}));
+  head.position.set(0,1.52,0); g.add(head);
+  // face on +z (the side that faces the player when the soldier aims)
+  g.add(box(0.045,0.05,0.02,0x1d1d1d,-0.062,1.555,0.166));   // eyes
+  g.add(box(0.045,0.05,0.02,0x1d1d1d, 0.062,1.555,0.166));
+  g.add(box(0.05,0.05,0.05,skin,0,1.5,0.175));               // nose
+  g.add(box(0.1,0.02,0.02,0x6e4a39,0,1.44,0.168));           // mouth
+  if (cfg.style==='stahlhelm'){
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.215,10,8,0,Math.PI*2,0,Math.PI/2), mat(cfg.helm));
+    dome.position.set(0,1.555,0); g.add(dome);
+    const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.225,0.265,0.09,10), mat(cfg.helm));
+    skirt.position.set(0,1.545,0); g.add(skirt);            // flared rim
+  } else if (cfg.style==='m1'){
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.225,10,8,0,Math.PI*2,0,Math.PI/2), mat(cfg.helm));
+    dome.position.set(0,1.54,0); dome.scale.y = 0.95; g.add(dome);
+  } else { // brodie
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.19,10,8,0,Math.PI*2,0,Math.PI/2), mat(cfg.helm));
+    dome.position.set(0,1.585,0); dome.scale.y = 0.65; g.add(dome);
+    const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.03,12), mat(cfg.helm));
+    brim.position.set(0,1.6,0); g.add(brim);
+  }
+  g.add(box(0.07,0.07,0.95,0x3a2c1a,0.3,1.05,0.3));      // rifle
+  g.userData.head = head;
+  return g;
+}
+function alliedFaction(){
+  if (!unit) return 'us';
+  if (unit.nation.indexOf('KINGDOM')>=0) return 'uk';
+  if (unit.nation==='CANADA') return 'ca';
+  return 'us';
+}
+
+// czech hedgehog beach obstacle
+function buildHedgehog(x,z){
+  const g = new THREE.Group();
+  for (let i=0;i<3;i++){
+    const beam = box(0.22,0.22,2.6,0x4d3b26,0,0,0);
+    beam.rotation.set(Math.random()*0.4, i*Math.PI/3, Math.PI/4);
+    g.add(beam);
+  }
+  g.position.set(x,0.8,z);
+  return g;
+}
+
+function buildBunker(x,z,ry){
+  const g = new THREE.Group();
+  g.add(box(7,3.2,5,0x6b6f66,0,1.6,0));
+  g.add(box(7.6,0.7,5.6,0x5d6158,0,3.4,0));
+  // firing slit
+  g.add(box(4.5,0.5,0.4,0x14140f,0,2.2,2.6));
+  g.position.set(x,0,z); g.rotation.y = ry||0;
+  return g;
+}
+
+function buildSandbags(x,z,ry){
+  const g = new THREE.Group();
+  for (let r=0;r<3;r++) for(let i=0;i<4;i++){
+    g.add(box(0.7,0.28,0.4,0x9b8a5e, -1.05+i*0.7+(r%2)*0.2, 0.14+r*0.27, 0));
+  }
+  g.position.set(x,0,z); if(ry) g.rotation.y=ry;
+  return g;
+}
+
+function buildHouse(x,z,w,d,h,ry,stone){
+  const g = new THREE.Group();
+  const wallC = stone? 0x9a8f7a : 0xb8a98c;
+  g.add(box(w,h,d,wallC,0,h/2,0));
+  // pitched roof
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*0.72, h*0.6, 4), mat(0x5a4634));
+  roof.position.set(0,h+h*0.3,0); roof.rotation.y = Math.PI/4;
+  g.add(roof);
+  // door + windows
+  g.add(box(0.9,1.6,0.1,0x3a2c1a,0,0.8,d/2+0.02));
+  g.add(box(0.8,0.9,0.08,0x222a30,-w/4,h*0.6,d/2+0.02));
+  g.add(box(0.8,0.9,0.08,0x222a30,w/4,h*0.6,d/2+0.02));
+  g.position.set(x,0,z); g.rotation.y = ry||0;
+  return g;
+}
+
+// Enterable house: four walls with an open doorway, interior floor, roof.
+// Registers per-wall colliders so the player can walk in through the door.
+function addHouse(x,z,w,d,h,interiorEnemy){
+  const g = new THREE.Group();
+  const wallC = Math.random()>0.5 ? 0x9a8f7a : 0xb8a98c;
+  const T = 0.28, DOOR = 2.2, seg = (w-DOOR)/2;
+  g.add(box(w,h,T,wallC,0,h/2,-d/2));                    // back
+  g.add(box(T,h,d,wallC,-w/2,h/2,0));                    // left
+  g.add(box(T,h,d,wallC, w/2,h/2,0));                    // right
+  g.add(box(seg,h,T,wallC,-(DOOR/2+seg/2),h/2,d/2));     // front L
+  g.add(box(seg,h,T,wallC, (DOOR/2+seg/2),h/2,d/2));     // front R
+  g.add(box(DOOR+0.2,h-2.3,T,wallC,0,2.3+(h-2.3)/2,d/2));// lintel over door
+  g.add(box(0.7,0.8,0.06,0x15202a,-(DOOR/2+seg/2),h*0.62,d/2+T/2+0.01)); // windows
+  g.add(box(0.7,0.8,0.06,0x15202a, (DOOR/2+seg/2),h*0.62,d/2+T/2+0.01));
+  g.add(box(w-0.3,0.08,d-0.3,0x6a5a42,0,0.05,0));        // floor
+  // simple interior: table + crates
+  g.add(box(1.4,0.08,0.9,0x7a6243,0,0.85,-d*0.18));
+  g.add(box(0.12,0.85,0.12,0x5d4a33,-0.55,0.42,-d*0.18));
+  g.add(box(0.12,0.85,0.12,0x5d4a33, 0.55,0.42,-d*0.18));
+  g.add(box(0.8,0.8,0.8,0x6e5b3e,w*0.28,0.4,-d*0.22));
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(Math.max(w,d)*0.72, h*0.6, 4), mat(0x5a4634));
+  roof.position.set(0,h+h*0.3,0); roof.rotation.y = Math.PI/4; g.add(roof);
+  g.position.set(x,0,z);
+  scene.add(g);
+  world.colliders.push(
+    {x:x,        z:z-d/2, hw:w/2,   hd:T/2},
+    {x:x-w/2,    z:z,     hw:T/2,   hd:d/2},
+    {x:x+w/2,    z:z,     hw:T/2,   hd:d/2},
+    {x:x-(DOOR/2+seg/2), z:z+d/2, hw:seg/2, hd:T/2},
+    {x:x+(DOOR/2+seg/2), z:z+d/2, hw:seg/2, hd:T/2}
+  );
+  world.cover.push({x,z,r:Math.max(w,d)/2+1.5});
+  if (interiorEnemy){
+    const e = spawnEnemy(x, z-d*0.15, {range:45, acc:0.9, leash:1.6});
+    e.mesh.position.set(x, 0, z-d*0.15);
+  }
+}
+
+function buildChurch(x,z,ry){
+  const g = new THREE.Group();
+  g.add(box(8,7,14,0x9a917c,0,3.5,0));               // nave
+  const roof = box(8.6,2.4,14.6,0x4e4035,0,8.0,0);
+  roof.rotation.z = 0; g.add(roof);
+  g.add(box(4.5,16,4.5,0x8d8470,0,8,9.5));            // tower
+  const spire = new THREE.Mesh(new THREE.ConeGeometry(3.4,6,4), mat(0x3c4a52));
+  spire.position.set(0,19,9.5); spire.rotation.y=Math.PI/4; g.add(spire);
+  // parachute on the steeple (Sainte-Mère-Église!)
+  const chute = new THREE.Mesh(new THREE.SphereGeometry(1.6,8,8,0,Math.PI*2,0,Math.PI/2), mat(0xdedacc));
+  chute.position.set(1.6,16.4,10.8); chute.rotation.z = 0.7;
+  g.add(chute);
+  g.position.set(x,0,z); g.rotation.y=ry||0;
+  return g;
+}
+
+function buildHedgerow(x,z,len,ry){
+  const g = new THREE.Group();
+  g.add(box(len,1.0,1.4,0x4a4232,0,0.5,0)); // earth bank
+  for (let i=0;i<len/2;i++){
+    const bush = new THREE.Mesh(new THREE.SphereGeometry(1.0+Math.random()*0.6,6,5), mat(0x33491f));
+    bush.position.set(-len/2+1+i*2+Math.random(), 1.5+Math.random()*0.5, (Math.random()-0.5)*0.6);
+    g.add(bush);
+  }
+  g.position.set(x,0,z); if(ry) g.rotation.y=ry;
+  return g;
+}
+
+function makeMarker(color){
+  const g = new THREE.Group();
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(1.6,0.12,8,24), new THREE.MeshBasicMaterial({color}));
+  ring.rotation.x = Math.PI/2; ring.position.y = 0.15;
+  const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,30,6),
+    new THREE.MeshBasicMaterial({color, transparent:true, opacity:0.32}));
+  beam.position.y = 15;
+  g.add(ring,beam);
+  return g;
+}
+
+// ---------------- ENEMIES / EFFECTS ----------------
+function spawnEnemy(x,z,opts){
+  const e = buildSoldier('de');
+  e.position.set(x,0,z);
+  e.userData.enemy = true;
+  const rec = Object.assign({
+    mesh:e, hp:2, alive:true, fireTimer:1.5+Math.random()*2,
+    range:opts&&opts.range||120, acc:opts&&opts.acc||1.0,
+    fixed:opts&&opts.fixed||false, dying:0,
+    anchor:{x:x, z:z}, leash:(opts&&opts.leash)||24,
+    moveTimer:1+Math.random()*2, strafeDir:Math.random()<0.5?1:-1,
+    bobSeed:Math.random()*6.28
+  }, {});
+  world.enemies.push(rec);
+  scene.add(e);
+  return rec;
+}
+
+const tracers = [];
+function tracer(from,to,color){
+  const g = new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]);
+  const line = new THREE.Line(g, new THREE.LineBasicMaterial({color:color||0xffd27a, transparent:true, opacity:0.95}));
+  scene.add(line);
+  tracers.push({line, life:0.12});
+}
+function updateTracers(dt){
+  for (let i=tracers.length-1;i>=0;i--){
+    tracers[i].life -= dt;
+    tracers[i].line.material.opacity = Math.max(0, tracers[i].life/0.12);
+    if (tracers[i].life<=0){ scene.remove(tracers[i].line); tracers.splice(i,1); }
+  }
+}
+
+const puffs = [];
+function flakPuff(x,y,z){
+  const m = new THREE.Mesh(new THREE.SphereGeometry(1.2,7,6),
+    new THREE.MeshBasicMaterial({color:0x9a8f80, transparent:true, opacity:0.85}));
+  m.position.set(x,y,z); scene.add(m);
+  puffs.push({m, life:1.4});
+  sfx('boom');
+}
+function updatePuffs(dt){
+  for (let i=puffs.length-1;i>=0;i--){
+    const p = puffs[i]; p.life -= dt;
+    p.m.scale.multiplyScalar(1+dt*2.2);
+    p.m.material.opacity = Math.max(0, p.life/1.4*0.85);
+    if (p.life<=0){ scene.remove(p.m); puffs.splice(i,1); }
+  }
+}
+
+// ---------------- WEAPON VIEWMODEL ----------------
+let viewmodel=null, muzzleFlash=null, recoil=0;
+function buildViewmodel(){
+  viewmodel = new THREE.Group();
+  const stock = box(0.09,0.1,0.55,0x4a3520,0,0,0.15);
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,0.5,8), mat(0x2b2f33));
+  barrel.rotation.x = Math.PI/2; barrel.position.set(0,0.03,-0.35);
+  muzzleFlash = new THREE.Mesh(new THREE.SphereGeometry(0.08,6,6),
+    new THREE.MeshBasicMaterial({color:0xffe9a0, transparent:true, opacity:0}));
+  muzzleFlash.position.set(0,0.03,-0.62);
+  viewmodel.add(stock,barrel,muzzleFlash);
+  viewmodel.position.set(0.34,-0.3,-0.7);
+  camera.add(viewmodel);
+}
+
+// ---------------- MISSION FACTORY ----------------
+function clearScene(){
+  while(scene.children.length) scene.remove(scene.children[0]);
+  tracers.length=0; puffs.length=0;
+}
+
+function baseWorld(skyColor, fogNear, fogFar, sunI, ambI, fogColor){
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(skyColor);
+  scene.fog = new THREE.Fog(fogColor!==undefined?fogColor:skyColor, fogNear, fogFar);
+  const amb = new THREE.AmbientLight(0xffffff, ambI); scene.add(amb);
+  const sun = new THREE.DirectionalLight(0xfff2d8, sunI);
+  sun.position.set(60,120,40); scene.add(sun);
+  scene.add(camera);
+}
+
+// =================== BEACH MISSION ===================
+function buildBeachMission(){
+  baseWorld(0x8e9aa3, 30, 420, 0.75, 0.55);
+  world = {
+    type:'beach', phase:'boat', enemies:[], colliders:[], cover:[],
+    timers:{boat:0, breach:0}, killGoal:0, kills:0, friendlies:[],
+    boat:null, ramp:null, wireGroup:null, marker:null
+  };
+
+  // sea
+  const sea = new THREE.Mesh(new THREE.PlaneGeometry(1000,600), mat(0x33505c));
+  sea.rotation.x = -Math.PI/2; sea.position.set(0,-0.4,-280); scene.add(sea);
+  // beach sand: from z=-60 (waterline) rising slightly to shingle at z=70
+  const sand = new THREE.Mesh(new THREE.PlaneGeometry(1000,200), mat(0xb9a87b));
+  sand.rotation.x = -Math.PI/2; sand.position.set(0,0,20); scene.add(sand);
+  // bluff plateau beyond z=110
+  const bluffTop = new THREE.Mesh(new THREE.PlaneGeometry(1000,300), mat(0x57633a));
+  bluffTop.rotation.x = -Math.PI/2; bluffTop.position.set(0,6,230); scene.add(bluffTop);
+  // bluff face
+  const bluff = new THREE.Mesh(new THREE.PlaneGeometry(1000,18), mat(0x6e6648));
+  bluff.position.set(0,3,110); bluff.rotation.x = -0.45; scene.add(bluff);
+  // shingle bank (low stone ridge) at z=70
+  const shingle = box(1000,1.3,5,0x8d8268,0,0.6,70); scene.add(shingle);
+  world.colliders.push({x:0,z:70,hw:500,hd:2.5,blockUntil:'never'}); // climbable gap handled below
+
+  // wire above shingle, with one breach point at x=10
+  world.wireGroup = new THREE.Group();
+  for (let x=-120; x<=120; x+=6){
+    const post = box(0.12,1.2,0.12,0x3a3a3a,x,1.9,75); world.wireGroup.add(post);
+  }
+  for (let r=0;r<3;r++){
+    const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.045,0.045,240,5),
+      mat(0x474747));
+    wire.rotation.z = Math.PI/2; wire.position.set(0,1.5+r*0.45,75);
+    world.wireGroup.add(wire);
+  }
+  scene.add(world.wireGroup);
+  world.colliders.push({id:'wire', x:0,z:75,hw:120,hd:1.2});
+
+  // hedgehogs + log ramps scattered low beach
+  for (let i=0;i<26;i++){
+    const x=(Math.random()-0.5)*220, z=-40+Math.random()*70;
+    scene.add(buildHedgehog(x,z));
+    world.colliders.push({x,z,hw:1.2,hd:1.2});
+    world.cover.push({x,z,r:2.6});
+  }
+  // a couple of knocked-out DD tanks as big cover
+  for (const [tx,tz] of [[-24,28],[30,12]]){
+    const t = new THREE.Group();
+    t.add(box(4.6,1.5,7,0x4c5440,0,0.85,0));
+    t.add(box(2.6,1.1,3,0x434b39,0,2.1,-0.5));
+    const gun = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,4,6), mat(0x3a4133));
+    gun.rotation.x = Math.PI/2; gun.position.set(0,2.2,2.4); t.add(gun);
+    t.position.set(tx,0,tz); t.rotation.y = Math.random();
+    scene.add(t);
+    world.colliders.push({x:tx,z:tz,hw:3,hd:4});
+    world.cover.push({x:tx,z:tz,r:5});
+  }
+
+  // bunkers + sandbag MG nests on the bluff line
+  const bunkerSpots = [[-45,118],[25,122]];
+  for (const [bx,bz] of bunkerSpots){
+    scene.add(buildBunker(bx,bz,Math.PI)); // slit faces sea
+    world.colliders.push({x:bx,z:bz,hw:3.8,hd:2.8});
+    const e = spawnEnemy(bx, bz-3.4, {fixed:true, acc:1.15});
+    e.mesh.position.y = 6; // on bluff height? bunker base at bluff top y6
+    e.mesh.position.set(bx, 4.6, bz-3.2);
+  }
+  const nestSpots = [[-80,112],[0,114],[62,110]];
+  for (const [nx,nz] of nestSpots){
+    const sb = buildSandbags(nx,nz,0); sb.position.y=5.2; scene.add(sb);
+    const e = spawnEnemy(nx, nz-1.5, {fixed:true});
+    e.mesh.position.set(nx, 4.8, nz-1.5);
+  }
+  // trench infantry that count for the assault phase
+  const trenchSpots = [[-30,104],[10,106],[40,103],[-8,108]];
+  for (const [tx,tz] of trenchSpots){
+    const e = spawnEnemy(tx,tz,{acc:0.85});
+    e.mesh.position.set(tx,4.2,tz);
+  }
+  world.killGoal = world.enemies.length;
+
+  // friendly soldiers pinned at shingle
+  for (let i=0;i<5;i++){
+    const f = buildSoldier(alliedFaction());
+    f.position.set(-30+i*14+(Math.random()*4), 0, 66+Math.random()*1.5);
+    f.rotation.y = Math.PI*(0.95+Math.random()*0.1);
+    f.scale.y = 0.62; f.position.y = -0.25; // crouched
+    scene.add(f);
+  }
+
+  // exit draw marker (up the ravine) — appears later
+  world.marker = makeMarker(0x59c1ff);
+  world.marker.position.set(60,6,160); world.marker.visible=false;
+  scene.add(world.marker);
+  // wire breach marker
+  world.breachMarker = makeMarker(0xffc24d);
+  world.breachMarker.position.set(10,1,75); world.breachMarker.visible=false;
+  scene.add(world.breachMarker);
+
+  // ---- Higgins boat ----
+  const boat = new THREE.Group();
+  boat.add(box(3.4,0.25,8.4,0x4f5a52,0,0.1,0));         // deck
+  boat.add(box(0.2,1.5,8.4,0x59645c,-1.7,0.85,0));      // walls
+  boat.add(box(0.2,1.5,8.4,0x59645c, 1.7,0.85,0));
+  boat.add(box(3.4,1.2,0.25,0x59645c,0,0.7,4.1));       // stern
+  const ramp = box(3.2,1.7,0.18,0x6a756d,0,0.95,-4.2);  // bow ramp
+  boat.add(ramp);
+  world.ramp = ramp;
+  for (let i=0;i<6;i++){
+    const s = buildSoldier(alliedFaction());
+    s.position.set(i%2? -0.9:0.9, 0.15, -2.6+Math.floor(i/2)*1.7);
+    s.scale.setScalar(0.95); boat.add(s);
+  }
+  boat.position.set(8,0,-180);
+  scene.add(boat);
+  world.boat = boat;
+
+  // player starts in boat
+  player.pos.set(8,1.8,-176);
+  player.yaw = Math.PI; player.pitch = 0; // looking toward beach (-z is beach? we made beach at +z... see below)
+  // NOTE: beach is at +z, sea at -z. Boat travels +z. Face +z => yaw = PI.
+  setObjective('RIDE IN — H-HOUR APPROACHES');
+  showNote(unit.notes.start, ()=>{});
+}
+
+// =================== AIRBORNE MISSION ===================
+function buildAirborneMission(){
+  baseWorld(0x101620, 25, 260, 0.18, 0.34, 0x0c1118);
+  // moonlight
+  const moon = new THREE.DirectionalLight(0x9fb6d8, 0.5);
+  moon.position.set(-40,100,-30); scene.add(moon);
+
+  world = {
+    type:'air', phase:'descent', enemies:[], colliders:[], cover:[],
+    timers:{flak:1.2}, killGoal:0, kills:0, marker:null, chute:null, friendlies:[]
+  };
+
+  // ground: dark fields
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(900,900), mat(0x2c3a22));
+  ground.rotation.x=-Math.PI/2; scene.add(ground);
+  // patchwork fields
+  for (let i=0;i<14;i++){
+    const f = new THREE.Mesh(new THREE.PlaneGeometry(40+Math.random()*60, 40+Math.random()*60),
+      mat(i%2?0x36452a:0x253420));
+    f.rotation.x=-Math.PI/2; f.position.set((Math.random()-0.5)*400, 0.02, (Math.random()-0.5)*400);
+    scene.add(f);
+  }
+  // hedgerows (bocage) bounding fields
+  const rows = [[-60,-40,90,0],[40,-70,110,0],[-90,30,80,Math.PI/2],[90,10,120,Math.PI/2],[0,-110,160,0]];
+  for (const [x,z,len,ry] of rows){
+    scene.add(buildHedgerow(x,z,len,ry));
+    if (ry===0) world.colliders.push({x,z,hw:len/2,hd:1.6});
+    else world.colliders.push({x,z,hw:1.6,hd:len/2});
+  }
+
+  // village at +z end: enterable houses (walk through the open doorways)
+  addHouse(-16,78,7,6,4.6,false);
+  addHouse( 16,78,8,6,5.0,true);   // German inside — go in and get him
+  addHouse(-18,100,7,6,4.4,true);  // and this one
+  addHouse( 18,100,7,6,4.6,false);
+  addHouse(  0,118,9,6,5.0,false);
+  const church = buildChurch(0,145,Math.PI);
+  scene.add(church);
+  world.colliders.push({x:0,z:145,hw:4.5,hd:7.5});
+  // burning house glow on the square (Sainte-Mère-Église fire)
+  const fire = new THREE.PointLight(0xff7a2a, 1.6, 60);
+  fire.position.set(16,4,78); scene.add(fire);
+  world.fire = fire;
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(1.2,7,6),
+    new THREE.MeshBasicMaterial({color:0xff8c3a, transparent:true, opacity:0.7}));
+  glow.position.set(16,5.4,78); scene.add(glow);
+  world.fireGlow = glow;
+
+  // a few drifting parachutes of fellow troopers
+  world.buddies = [];
+  for (let i=0;i<5;i++){
+    const b = new THREE.Group();
+    const canopy = new THREE.Mesh(new THREE.SphereGeometry(1.5,8,8,0,Math.PI*2,0,Math.PI/2), mat(0xd9d4c2));
+    const trooper = buildSoldier(alliedFaction()); trooper.scale.setScalar(0.8);
+    trooper.position.y=-3.4; canopy.position.y=0;
+    b.add(canopy,trooper);
+    b.position.set((Math.random()-0.5)*120, 60+Math.random()*120, (Math.random()-0.5)*120-40);
+    scene.add(b); world.buddies.push(b);
+  }
+
+  // enemies in village (hidden threat until regroup phase, but they exist)
+  const spots = [[-8,70],[6,88],[-12,92],[12,110],[0,96],[-24,112],[26,90],[6,130]]; // streets & square only
+  for (const [x,z] of spots){
+    const e = spawnEnemy(x,z,{range:60,acc:0.8});
+    e.mesh.visible = true;
+  }
+  world.killGoal = world.enemies.length;
+  // sandbag posts at square
+  scene.add(buildSandbags(0,90,0)); world.cover.push({x:0,z:90,r:2.2});
+  scene.add(buildSandbags(-10,128,0.4)); world.cover.push({x:-10,z:128,r:2.2});
+
+  // regroup marker in a field
+  world.marker = makeMarker(0x59c1ff);
+  world.marker.position.set(-40,0,-20);
+  scene.add(world.marker);
+
+  // player's parachute canopy (attached above camera)
+  const myChute = new THREE.Mesh(new THREE.SphereGeometry(2.6,9,9,0,Math.PI*2,0,Math.PI/2), mat(0xd9d4c2));
+  myChute.position.set(0,5,0);
+  camera.add(myChute);
+  world.chute = myChute;
+
+  player.pos.set((Math.random()-0.5)*40, 220, -60+(Math.random()-0.5)*30);
+  player.yaw = Math.PI; player.pitch = -0.5;
+  setObjective('STEER YOUR CANOPY — LAND IN THE FIELDS');
+  showNote(unit.notes.land, ()=>{});
+}
+
+// ---------------- UI HELPERS ----------------
+const $ = id => document.getElementById(id);
+function setObjective(t){ $('objective').textContent = t; }
+function toast(t, secs){
+  const m = $('msg'); m.textContent = t; m.style.opacity = 1;
+  clearTimeout(m._t); m._t = setTimeout(()=>{ m.style.opacity=0; }, (secs||3)*1000);
+}
+function updateHUD(){
+  const hp = Math.max(0, Math.round(player.hp));
+  $('hpInner').style.width = hp+'%';
+  $('hpInner').style.background = hp>50? '#7a8a3a' : (hp>25? '#c89a2e':'#c0392b');
+  $('hpNum').textContent = hp;
+  $('hpLabel').textContent = hp>60? 'OK' : (hp>30? 'WOUNDED' : 'CRITICAL');
+  $('hpLabel').style.color = hp>60? '#9fb06a' : (hp>30? '#e0b34a':'#e06050');
+  $('lowVignette').style.opacity = hp<=0? 0 : (hp<35? 0.55 : 0);
+  $('ammo').textContent = unit.weapon+'  '+(player.reloading?'--':player.ammo)+' / '+player.clip;
+  const left = world ? world.enemies.filter(e=>e.alive).length : 0;
+  $('kills').textContent = (unit.enemyLabel||'ENEMY')+': '+left;
+}
+let noteCb = null;
+function showNote(note, cb){
+  state = 'note'; noteCb = cb||null;
+  $('histTitle').textContent = note.t;
+  $('histBody').innerHTML = note.b;
+  $('historyCard').classList.remove('hidden');
+  if (!IS_TOUCH && document.pointerLockElement) document.exitPointerLock();
+}
+$('histBtn').addEventListener('click', ()=>{
+  $('historyCard').classList.add('hidden');
+  state = 'playing';
+  const cb = noteCb; noteCb=null; if (cb) cb();
+});
+let endSuccess = true;
+function showEnd(success){
+  state = 'end'; endSuccess = success;
+  $('endStamp').textContent = success ? 'MISSION ACCOMPLISHED' : 'KILLED IN ACTION';
+  $('endStamp').style.color = success? 'var(--olive)' : 'var(--blood)';
+  $('endStamp').style.borderColor = $('endStamp').style.color;
+  $('endTitle').textContent = unit.briefTitle;
+  $('endBody').innerHTML = success
+    ? '<p><b>'+unit.name+'</b> — objectives secured. Well done, soldier.</p>'
+    : '<p>You fell on the field of battle, as so many did on 6 June 1944. The attack goes on without you.</p>';
+  $('endBtn').textContent = success ? 'RETURN TO HEADQUARTERS' : 'TRY AGAIN';
+  $('endScreen').classList.remove('hidden');
+  $('hud').style.display='none';
+  if (!IS_TOUCH && document.pointerLockElement) document.exitPointerLock();
+}
+$('endBtn').addEventListener('click', ()=>{
+  $('endScreen').classList.add('hidden');
+  if (endSuccess){ state='menu'; $('menu').classList.remove('hidden'); }
+  else startMission();
+});
+
+// ---------------- MENU ----------------
+function initMenu(){
+  const grid = $('unitGrid');
+  for (const u of UNITS){
+    const card = document.createElement('div');
+    card.className = 'unit-card';
+    card.innerHTML = '<div class="nation">'+u.nation+'</div><div class="uname">'+u.name+'</div><div class="obj">'+u.obj+'</div>';
+    card.addEventListener('click', ()=>{
+      unit = u; audio();
+      $('briefTitle').textContent = u.briefTitle;
+      $('briefMeta').textContent = u.briefMeta;
+      $('briefBody').innerHTML = u.brief;
+      $('menu').classList.add('hidden');
+      $('briefing').classList.remove('hidden');
+      state='briefing';
+    });
+    grid.appendChild(card);
+  }
+  $('backBtn').addEventListener('click', ()=>{
+    $('briefing').classList.add('hidden');
+    $('menu').classList.remove('hidden'); state='menu';
+  });
+  $('deployBtn').addEventListener('click', ()=>{
+    $('briefing').classList.add('hidden');
+    startAmbience();
+    startMission();
+  });
+  $('fsBtn').addEventListener('click', toggleFS);
+}
+
+function startMission(){
+  player.hp = 100; player.clip = unit.clip; player.ammo = unit.clip;
+  player.reloading = false; player.vy = 0;
+  if (world && world.chute){ camera.remove(world.chute); }
+  if (viewmodel && viewmodel.parent) camera.remove(viewmodel);
+  if (unit.type==='beach') buildBeachMission(); else buildAirborneMission();
+  buildViewmodel2();
+  $('hud').style.display='block';
+  $('actionBtn').style.display='none';
+  state = (state==='note') ? 'note' : 'playing';
+  updateHUD();
+}
+function buildViewmodel2(){ buildViewmodel(); }
+
+// ---------------- COMBAT ----------------
+let fireHeld=false, fireCooldown=0;
+const raycaster = new THREE.Raycaster();
+function reload(){
+  if (player.reloading || player.ammo===player.clip) return;
+  player.reloading = true; sfx('click');
+  if (unit.weapon==='M1 GARAND' && player.ammo===0) sfx('ping');
+  setTimeout(()=>{ player.ammo = player.clip; player.reloading=false; updateHUD(); }, 1500);
+  updateHUD();
+}
+function tryFire(){
+  if (player.reloading || fireCooldown>0) return;
+  if (player.ammo<=0){ sfx('click'); toast('RELOAD!  (R)'); return; }
+  player.ammo--; fireCooldown = 0.22; recoil = 1;
+  sfx('shot');
+  muzzleFlash.material.opacity = 1;
+  if (player.ammo===0 && unit.weapon==='M1 GARAND') sfx('ping');
+  // raycast from screen center
+  raycaster.setFromCamera({x:0,y:0}, camera);
+  const meshes = world.enemies.filter(e=>e.alive).map(e=>e.mesh);
+  const hits = raycaster.intersectObjects(meshes, true);
+  if (hits.length){
+    let obj = hits[0].object, root = obj;
+    while (root.parent && !root.userData.enemy) root = root.parent;
+    const rec = world.enemies.find(e=>e.mesh===root);
+    if (rec && rec.alive){
+      const headshot = (obj === root.userData.head);
+      rec.hp -= headshot? 2 : 1;
+      if (rec.hp<=0){
+        rec.alive=false; rec.dying=0.6; world.kills++;
+        toast(headshot? 'ENEMY DOWN — HEAD SHOT' : 'ENEMY DOWN', 1.4);
+      }
+    }
+  }
+  updateHUD();
+}
+function hurtPlayer(d){
+  player.hp -= d; player.lastHurt = 0;
+  sfx('hurt');
+  const v = $('dmgVignette');
+  v.style.opacity = 0.95;
+  clearTimeout(v._t); v._t = setTimeout(()=>{ v.style.opacity=0; }, 300);
+  if (player.hp<=0){ player.hp=0; showEnd(false); }
+  updateHUD();
+}
+function nearCover(){
+  for (const c of world.cover){
+    const dx=player.pos.x-c.x, dz=player.pos.z-c.z;
+    if (dx*dx+dz*dz < c.r*c.r) return true;
+  }
+  return false;
+}
+function combatActive(){
+  return (world.type==='beach' && world.phase!=='boat' && world.phase!=='rampdrop') ||
+         (world.type==='air' && (player.pos.z>30 || world.phase==='village' || world.phase==='church'));
+}
+function updateEnemies(dt){
+  const firingAllowed = combatActive();
+  const moving = (Math.abs(input.f-input.b)+Math.abs(input.r-input.l)+Math.abs(input.stick.x)+Math.abs(input.stick.y)) > 0.2;
+  const covered = nearCover();
+  for (const e of world.enemies){
+    if (!e.alive){
+      if (e.dying>0){
+        e.dying -= dt;
+        e.mesh.rotation.x = -(1-Math.max(0,e.dying)/0.6) * Math.PI/2;
+      }
+      continue;
+    }
+    // face player
+    e.mesh.lookAt(player.pos.x, e.mesh.position.y, player.pos.z);
+    const dx=player.pos.x-e.mesh.position.x, dz=player.pos.z-e.mesh.position.z;
+    const dist = Math.sqrt(dx*dx+dz*dz);
+    // movement: advance when far, strafe between cover when close
+    if (!e.fixed && firingAllowed && dist < e.range+25 && dist > 3){
+      let mvx, mvz, sp;
+      if (dist > 32){ mvx = dx/dist; mvz = dz/dist; sp = 2.4; }
+      else {
+        e.moveTimer -= dt;
+        if (e.moveTimer<=0){ e.moveTimer = 1.4+Math.random()*2.2; e.strafeDir*=-1; }
+        mvx = -dz/dist*e.strafeDir; mvz = dx/dist*e.strafeDir; sp = 1.7;
+      }
+      e.mesh.position.x += mvx*sp*dt;
+      e.mesh.position.z += mvz*sp*dt;
+      const ax = e.mesh.position.x-e.anchor.x, az = e.mesh.position.z-e.anchor.z;
+      const ad = Math.hypot(ax,az);
+      if (ad > e.leash){
+        e.mesh.position.x = e.anchor.x + ax/ad*e.leash;
+        e.mesh.position.z = e.anchor.z + az/ad*e.leash;
+      }
+      collideEntity(e.mesh.position, 0.45);
+      const baseY = world.type==='beach' ? groundHeight(e.mesh.position.z) : 0;
+      e.mesh.position.y = baseY + Math.abs(Math.sin(performance.now()*0.011 + e.bobSeed))*0.08;
+    }
+    if (!firingAllowed || dist>e.range) continue;
+    e.fireTimer -= dt;
+    if (e.fireTimer<=0){
+      e.fireTimer = 1.5 + Math.random()*1.6;
+      mgBurst();
+      let p = 0.22 * e.acc * (1 - (dist/e.range)*0.55);
+      if (moving) p *= 0.55;
+      if (covered) p *= 0.4;
+      const muzzle = e.mesh.position.clone().add(new THREE.Vector3(0,1.4,0));
+      if (Math.random() < p){
+        tracer(muzzle, player.pos.clone());
+        hurtPlayer(8+Math.random()*9);
+      } else {
+        const miss = player.pos.clone().add(new THREE.Vector3((Math.random()-0.5)*5, (Math.random()-0.5)*3, (Math.random()-0.5)*5));
+        tracer(muzzle, miss);
+      }
+    }
+  }
+}
+
+
+// ---------------- FRIENDLY SQUAD ----------------
+function spawnFriendly(offX, offZ){
+  const m = buildSoldier(alliedFaction());
+  m.position.set(player.pos.x+offX, world.type==='beach'?groundHeight(player.pos.z):0, player.pos.z+offZ);
+  scene.add(m);
+  world.friendlies.push({mesh:m, off:{x:offX, z:offZ}, fireTimer:1.5+Math.random()*2, bobSeed:Math.random()*6.28});
+}
+function updateFriendlies(dt){
+  if (!world.friendlies || !world.friendlies.length) return;
+  const allowed = combatActive();
+  for (const f of world.friendlies){
+    // formation point behind/beside the player, rotated with player facing
+    const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
+    const tx = player.pos.x + f.off.z*sy + f.off.x*cy;
+    const tz = player.pos.z + f.off.z*cy - f.off.x*sy;
+    const dx = tx - f.mesh.position.x, dz = tz - f.mesh.position.z;
+    const d = Math.hypot(dx,dz);
+    let movingNow = false;
+    if (d > 2.0){
+      const sp = Math.min(6.0, 2.5 + d*0.8);
+      f.mesh.position.x += dx/d*sp*dt;
+      f.mesh.position.z += dz/d*sp*dt;
+      collideEntity(f.mesh.position, 0.45);
+      movingNow = true;
+    }
+    const baseY = world.type==='beach' ? groundHeight(f.mesh.position.z) : 0;
+    f.mesh.position.y = baseY + (movingNow ? Math.abs(Math.sin(performance.now()*0.012+f.bobSeed))*0.09 : 0);
+    // pick nearest living enemy to face & engage
+    let best=null, bd=1e9;
+    for (const e of world.enemies){
+      if (!e.alive) continue;
+      const ex=e.mesh.position.x-f.mesh.position.x, ez=e.mesh.position.z-f.mesh.position.z;
+      const ed=Math.hypot(ex,ez);
+      if (ed<bd){ bd=ed; best=e; }
+    }
+    if (best && bd<95 && allowed){
+      f.mesh.lookAt(best.mesh.position.x, f.mesh.position.y, best.mesh.position.z);
+      f.fireTimer -= dt;
+      if (f.fireTimer<=0){
+        f.fireTimer = 2.2+Math.random()*2.5;
+        sfx('eshot');
+        const muzzle = f.mesh.position.clone().add(new THREE.Vector3(0,1.4,0));
+        const aim = best.mesh.position.clone().add(new THREE.Vector3((Math.random()-0.5)*1.5,1.1,(Math.random()-0.5)*1.5));
+        tracer(muzzle, aim, 0xa8ffb0);
+        if (Math.random() < 0.22){
+          best.hp -= 1;
+          if (best.hp<=0){ best.alive=false; best.dying=0.6; world.kills++; toast('Your squad got one!',1.4); updateHUD(); }
+        }
+      }
+    } else if (movingNow && (dx||dz)){
+      f.mesh.lookAt(f.mesh.position.x+dx, f.mesh.position.y, f.mesh.position.z+dz);
+    }
+  }
+}
+
+// ---------------- MOVEMENT ----------------
+function groundHeight(z){
+  if (world.type==='air') return 0;
+  if (z < 100) return 0;
+  if (z < 120) return (z-100)/20 * 6;
+  return 6;
+}
+function collideEntity(pos, radius){
+  for (const c of world.colliders){
+    if (c.blockUntil==='never') continue;
+    if (c.removed) continue;
+    const ex = c.hw+radius, ez = c.hd+radius;
+    const dx = pos.x - c.x, dz = pos.z - c.z;
+    if (Math.abs(dx)<ex && Math.abs(dz)<ez){
+      const px = ex-Math.abs(dx), pz = ez-Math.abs(dz);
+      if (px<pz) pos.x = c.x + Math.sign(dx)*ex;
+      else pos.z = c.z + Math.sign(dz)*ez;
+    }
+  }
+}
+function collide(){ collideEntity(player.pos, 0.5); }
+function updatePlayer(dt){
+  // look
+  const sens = 0.0023;
+  player.yaw -= input.lookDX * sens;
+  player.pitch -= input.lookDY * sens;
+  player.pitch = Math.max(-1.35, Math.min(1.35, player.pitch));
+  input.lookDX = 0; input.lookDY = 0;
+
+  const inBoat = (world.type==='beach' && world.phase==='boat');
+  const descending = (world.type==='air' && world.phase==='descent');
+
+  let mx = (input.r-input.l) + input.stick.x;
+  let mz = (input.f-input.b) - input.stick.y;
+  const ml = Math.hypot(mx,mz); if (ml>1){ mx/=ml; mz/=ml; }
+
+  if (descending){
+    // steer canopy
+    const drift = 7;
+    const sin=Math.sin(player.yaw), cos=Math.cos(player.yaw);
+    player.pos.x += (mx*cos - mz*sin) * drift * dt;
+    player.pos.z += (-mx*sin - mz*cos) * drift * dt;
+    player.pos.y -= 9 * dt;
+    // flak
+    world.timers.flak -= dt;
+    if (world.timers.flak<=0 && player.pos.y>40){
+      world.timers.flak = 0.8+Math.random()*1.2;
+      const fx = player.pos.x+(Math.random()-0.5)*60;
+      const fy = player.pos.y+(Math.random()-0.5)*40;
+      const fz = player.pos.z+(Math.random()-0.5)*60;
+      flakPuff(fx,fy,fz);
+      const dd = Math.hypot(fx-player.pos.x, fy-player.pos.y, fz-player.pos.z);
+      if (dd<14) hurtPlayer(6+Math.random()*8);
+    }
+    if (player.pos.y <= 1.8){
+      player.pos.y = 1.8;
+      camera.remove(world.chute);
+      world.phase = 'regroup';
+      setObjective('ASSEMBLE — REACH THE BLUE RALLY MARKER');
+      toast('You hear a cricket click in the dark... click-clack.');
+      sfx('click');
+    }
+  } else if (inBoat){
+    // boat carries player
+    world.boat.position.z += 13 * dt;
+    player.pos.set(world.boat.position.x, 1.9, world.boat.position.z+2.6);
+    // dramatic overhead tracers
+    if (Math.random()<dt*1.2){
+      const sx=(Math.random()-0.5)*60;
+      tracer(new THREE.Vector3(sx,8,130), new THREE.Vector3(sx+(Math.random()-0.5)*30, 4, world.boat.position.z-30));
+    }
+    if (world.boat.position.z >= -52){
+      world.phase = 'rampdrop'; world.timers.boat = 0;
+      sfx('boom');
+    }
+  } else if (world.phase==='rampdrop'){
+    world.timers.boat += dt;
+    world.ramp.rotation.x = Math.min(1.5, world.timers.boat*1.8);
+    world.ramp.position.z = -4.2 - Math.min(1,world.timers.boat)*1.2;
+    world.ramp.position.y = 0.95 - Math.min(1,world.timers.boat)*0.7;
+    if (world.timers.boat > 1.1){
+      world.phase = 'beach';
+      setObjective('GET OFF THE BEACH — REACH THE SHINGLE BANK AHEAD');
+      toast('GO! GO! GO!');
+      spawnFriendly(-2.0, 2.0); spawnFriendly(2.0, 2.0); spawnFriendly(0, 3.4);
+    }
+    player.pos.set(world.boat.position.x, 1.9, world.boat.position.z+2.6);
+  } else {
+    // normal ground movement
+    const sin=Math.sin(player.yaw), cos=Math.cos(player.yaw);
+    const sp = player.speed;
+    player.pos.x += (mx*cos - mz*sin) * sp * dt;
+    player.pos.z += (-mx*sin - mz*cos) * sp * dt;
+    collide();
+    // world bounds
+    player.pos.x = Math.max(-180, Math.min(180, player.pos.x));
+    player.pos.z = Math.max(-200, Math.min(220, player.pos.z));
+    // gravity + jumping
+    const gh = groundHeight(player.pos.z) + 1.8;
+    player.vy -= 24*dt;
+    player.pos.y += player.vy*dt;
+    if (player.pos.y <= gh){ player.pos.y = gh; player.vy = 0; player.grounded = true; }
+    else player.grounded = false;
+  }
+
+  camera.position.copy(player.pos);
+  camera.rotation.set(0,0,0);
+  camera.rotateY(player.yaw);
+  camera.rotateX(player.pitch);
+
+  // firing (semi-auto on press)
+  if (input.fire && !fireHeld && !inBoat && !descending && world.phase!=='rampdrop') tryFire();
+  fireHeld = input.fire;
+  fireCooldown = Math.max(0, fireCooldown-dt);
+  recoil = Math.max(0, recoil-dt*5);
+  if (viewmodel){
+    viewmodel.position.z = -0.7 + recoil*0.08;
+    viewmodel.rotation.x = recoil*0.06;
+    muzzleFlash.material.opacity = Math.max(0, muzzleFlash.material.opacity - dt*9);
+  }
+
+  // health regen
+  player.lastHurt += dt;
+  if (player.lastHurt>5 && player.hp<100 && player.hp>0){
+    player.hp = Math.min(100, player.hp + 7*dt); updateHUD();
+  }
+}
+
+// ---------------- PHASE / OBJECTIVE LOGIC ----------------
+function dist2D(x,z){ const dx=player.pos.x-x, dz=player.pos.z-z; return Math.hypot(dx,dz); }
+function updatePhases(dt){
+  if (world.type==='beach'){
+    if (world.phase==='beach' && player.pos.z >= 64){
+      world.phase='breach';
+      world.breachMarker.visible = true;
+      showNote(unit.notes.seawall, ()=>{
+        setObjective('BREACH THE WIRE — HOLD '+(IS_TOUCH?'[HOLD]':'[E]')+' AT THE ORANGE MARKER');
+        if (IS_TOUCH) $('actionBtn').style.display='flex';
+      });
+    } else if (world.phase==='breach'){
+      const near = dist2D(10,75) < 5;
+      if (near && input.action){
+        world.timers.breach += dt;
+        toast('SETTING BANGALORE... '+Math.ceil(3-world.timers.breach)+'s', 0.6);
+        if (world.timers.breach>=3){
+          sfx('boom');
+          scene.remove(world.wireGroup);
+          world.breachMarker.visible=false;
+          const wc = world.colliders.find(c=>c.id==='wire'); if (wc) wc.removed=true;
+          if (IS_TOUCH) $('actionBtn').style.display='none';
+          world.phase='assault';
+          showNote(unit.notes.wire, ()=>{
+            setObjective('ASSAULT THE BLUFF — DESTROY THE STRONGPOINT GARRISON');
+          });
+        }
+      } else if (!near) world.timers.breach = 0;
+    } else if (world.phase==='assault'){
+      if (world.enemies.every(e=>!e.alive)){
+        world.phase='exit';
+        world.marker.visible = true;
+        showNote(unit.notes.bunkers, ()=>{
+          setObjective('MOVE UP THE DRAW — REACH THE BLUE RALLY MARKER');
+        });
+      }
+    } else if (world.phase==='exit'){
+      if (dist2D(60,160) < 4){
+        world.phase='done';
+        showNote(unit.notes.end, ()=> showEnd(true));
+      }
+    }
+  } else { // airborne
+    if (world.phase==='regroup'){
+      if (dist2D(world.marker.position.x, world.marker.position.z) < 4){
+        world.phase='village';
+        world.marker.visible=false;
+        spawnFriendly(-2.0, 2.0); spawnFriendly(2.0, 2.0); spawnFriendly(0, 3.4);
+        toast('Click... click-clack. Three troopers fall in beside you.');
+        showNote(unit.notes.regroup, ()=>{
+          setObjective('CLEAR THE VILLAGE — DESTROY THE GARRISON');
+        });
+      }
+    } else if (world.phase==='village'){
+      if (world.enemies.every(e=>!e.alive)){
+        world.phase='church';
+        world.marker.position.set(0,0,132);
+        world.marker.visible=true;
+        showNote(unit.notes.village, ()=>{
+          setObjective('SECURE THE CHURCH — REACH THE BLUE MARKER');
+        });
+      }
+    } else if (world.phase==='church'){
+      if (dist2D(0,132) < 5){
+        world.phase='done';
+        showNote(unit.notes.end, ()=> showEnd(true));
+      }
+    }
+  }
+}
+
+// ---------------- MAIN LOOP ----------------
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, clock.getDelta());
+  if (state==='playing' && world){
+    updatePlayer(dt);
+    updateEnemies(dt);
+    updateFriendlies(dt);
+    updatePhases(dt);
+    updateTracers(dt);
+    updatePuffs(dt);
+    // ambient animation
+    if (world.marker && world.marker.visible) world.marker.rotation.y += dt*1.5;
+    if (world.breachMarker && world.breachMarker.visible) world.breachMarker.rotation.y += dt*1.5;
+    if (world.fire) world.fire.intensity = 1.3 + Math.sin(performance.now()*0.01)*0.5 + Math.random()*0.3;
+    if (world.buddies) for (const b of world.buddies){ if (b.position.y>4) b.position.y -= 6.5*dt; }
+  }
+  if (renderer && scene) renderer.render(scene, camera);
+}
+
+// ---------------- BOOT ----------------
+initRenderer();
+initInput();
+initMenu();
+animate();
+
+</script>
+</body>
+</html>
