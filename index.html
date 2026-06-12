@@ -105,6 +105,16 @@
   body.touch #statbar{bottom:auto;top:calc(52px + env(safe-area-inset-top));}
   #hpOuter{width:200px !important;}
   #hpRow{display:flex;justify-content:space-between;font-size:12px;letter-spacing:1px;margin-bottom:3px;}
+  .clsRow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin:8px 0;}
+  @media(max-width:560px){.clsRow{grid-template-columns:1fr;}}
+  .clsCard{border:1.5px solid var(--khaki);padding:8px;cursor:pointer;text-align:center;}
+  .clsCard.sel{border-color:var(--blood);background:rgba(140,47,35,.12);}
+  .clsCard .cn{font-family:'Courier New',monospace;font-weight:bold;font-size:13px;letter-spacing:1px;}
+  .clsCard .cd{font-size:11.5px;color:#5a523a;line-height:1.3;margin-top:3px;}
+  #solName{font-family:'Courier New',monospace;font-size:16px;letter-spacing:2px;
+    background:rgba(75,83,32,.08);border:1.5px solid var(--khaki);padding:8px 10px;
+    width:100%;max-width:280px;color:var(--ink);text-transform:uppercase;}
+  #solTag{font-size:12px;letter-spacing:1px;color:#cfc89f;margin-bottom:4px;}
   #pauseHint{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:35;
     color:var(--stencil);background:rgba(20,22,16,.85);padding:16px 26px;display:none;
     font-family:'Courier New',monospace;letter-spacing:1px;border:1px solid rgba(217,210,184,.4);}
@@ -121,6 +131,7 @@
   <div id="objective">OBJECTIVE</div>
   <div id="kills">ENEMY: 0</div>
   <div id="statbar">
+    <div id="solTag">PVT. SOLDIER</div>
     <div id="hpRow"><span id="hpLabel">OK</span><span id="hpNum">100</span></div>
     <div id="hpOuter"><div id="hpInner"></div></div>
     <div id="ammo">M1 GARAND &nbsp;8 / 8</div>
@@ -150,6 +161,7 @@
     <div class="unit-grid" id="unitGrid"></div>
     <p class="meta" style="margin-top:14px">Mac: WASD move · mouse look · click fire · R reload · E action · SPACE jump · F fullscreen<br>iPad: left stick move · drag right side to look · FIRE / JUMP / RELOAD buttons</p>
     <button class="btn secondary" id="fsBtn" style="margin-top:6px">⛶ FULL SCREEN</button>
+    <button class="btn secondary" id="musicBtn" style="margin-top:6px">♪ MUSIC: ON</button>
   </div>
 </div>
 
@@ -160,6 +172,23 @@
     <h1 id="briefTitle"></h1>
     <div class="meta" id="briefMeta"></div>
     <div id="briefBody"></div>
+    <h2>YOUR SOLDIER</h2>
+    <p class="meta" style="margin:4px 0">SERVICE RECORD — NAME &amp; MILITARY OCCUPATIONAL SPECIALTY</p>
+    <input id="solName" maxlength="14" placeholder="ENTER LAST NAME" autocomplete="off">
+    <div class="clsRow">
+      <div class="clsCard sel" data-cls="rifle">
+        <div class="cn">RIFLEMAN</div>
+        <div class="cd">Balanced. Standard service rifle, steady speed.</div>
+      </div>
+      <div class="clsCard" data-cls="mg">
+        <div class="cn">MACHINE GUNNER</div>
+        <div class="cd">Automatic fire, 20-round magazine. Heavier &amp; slower.</div>
+      </div>
+      <div class="clsCard" data-cls="medic">
+        <div class="cn">MEDIC</div>
+        <div class="cd">Light carbine, fast, recovers from wounds twice as quickly.</div>
+      </div>
+    </div>
     <button class="btn" id="deployBtn">COMMENCE OPERATION</button>
     <button class="btn secondary" id="backBtn">BACK</button>
   </div>
@@ -531,7 +560,7 @@ const FACTIONS = {
   uk:{uni:0x7a6c47, legs:0x6b5e3d, helm:0x575239, style:'brodie'},
   ca:{uni:0x7a6c47, legs:0x6b5e3d, helm:0x575239, style:'brodie'}
 };
-function buildSoldier(faction){
+function buildSoldier(faction, cls){
   const cfg = FACTIONS[faction] || FACTIONS.us;
   const g = new THREE.Group();
   g.add(box(0.5,0.75,0.3,cfg.legs,0,0.37,0));            // trousers
@@ -564,10 +593,34 @@ function buildSoldier(faction){
     const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.3,0.03,12), mat(cfg.helm));
     brim.position.set(0,1.6,0); g.add(brim);
   }
-  g.add(box(0.07,0.07,0.95,0x3a2c1a,0.3,1.05,0.3));      // rifle
+  // weapon + class insignia (LD-001)
+  if (cls==='mg' || cls==='hmg'){
+    g.add(box(0.1,0.1,1.3,0x23272b,0.3,1.05,0.35));       // big machine gun
+    g.add(box(0.04,0.3,0.04,0x23272b,0.24,0.8,0.95));     // bipod legs
+    g.add(box(0.04,0.3,0.04,0x23272b,0.36,0.8,0.95));
+    g.add(box(0.3,0.18,0.1,0x3a3a2a,-0.2,1.1,0.18));      // ammo pouch
+  } else if (cls==='medic'){
+    // medics carry an aid bag and wear the red cross — historically they often went unarmed
+    g.add(box(0.34,0.3,0.16,0xddd6c4,-0.3,0.85,0.16));    // white medical bag
+    g.add(box(0.2,0.06,0.17,0xb22222,-0.3,0.85,0.165));   // red cross on bag
+    g.add(box(0.06,0.2,0.17,0xb22222,-0.3,0.85,0.165));
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.1,0.1,0.02,10), mat(0xe8e4d8));
+    disc.rotation.x = Math.PI/2; disc.position.set(0,1.6,0.19); g.add(disc); // helmet roundel
+    g.add(box(0.1,0.03,0.01,0xb22222,0,1.6,0.205));
+    g.add(box(0.03,0.1,0.01,0xb22222,0,1.6,0.205));
+    g.add(box(0.18,0.12,0.2,0xe8e4d8,0.38,1.05,0));       // armband
+  } else {
+    g.add(box(0.07,0.07,0.95,0x3a2c1a,0.3,1.05,0.3));     // rifle
+  }
   g.userData.head = head;
   return g;
 }
+// per-class combat behavior
+const ENEMY_CLS = {
+  rifle:{burst:1, interval:[1.6,3.2], dmg:[8,15],  killHp:2},
+  mg:   {burst:3, interval:[1.3,2.6], dmg:[6,11],  killHp:2},
+  hmg:  {burst:5, interval:[1.1,2.2], dmg:[10,17], killHp:3}
+};
 function alliedFaction(){
   if (!unit) return 'us';
   if (unit.nation.indexOf('KINGDOM')>=0) return 'uk';
@@ -701,13 +754,15 @@ function makeMarker(color){
 
 // ---------------- ENEMIES / EFFECTS ----------------
 function spawnEnemy(x,z,opts){
-  const e = buildSoldier('de');
+  const cls = (opts&&opts.cls)||'rifle';
+  const e = buildSoldier('de', cls);
   e.position.set(x,0,z);
   e.userData.enemy = true;
   const rec = Object.assign({
-    mesh:e, hp:2, alive:true, fireTimer:1.5+Math.random()*2,
+    mesh:e, alive:true, fireTimer:1.5+Math.random()*2,
     range:opts&&opts.range||120, acc:opts&&opts.acc||1.0,
-    fixed:opts&&opts.fixed||false, dying:0,
+    fixed:opts&&opts.fixed||false, dying:0, cls:cls,
+    hp:ENEMY_CLS[cls].killHp,
     anchor:{x:x, z:z}, leash:(opts&&opts.leash)||24,
     moveTimer:1+Math.random()*2, strafeDir:Math.random()<0.5?1:-1,
     bobSeed:Math.random()*6.28
@@ -733,9 +788,10 @@ function updateTracers(dt){
 }
 
 const puffs = [];
-function flakPuff(x,y,z){
+function flakPuff(x,y,z,color,scale){
   const m = new THREE.Mesh(new THREE.SphereGeometry(1.2,7,6),
-    new THREE.MeshBasicMaterial({color:0x9a8f80, transparent:true, opacity:0.85}));
+    new THREE.MeshBasicMaterial({color:color||0x9a8f80, transparent:true, opacity:0.85}));
+  if (scale) m.scale.setScalar(scale);
   m.position.set(x,y,z); scene.add(m);
   puffs.push({m, life:1.4});
   sfx('boom');
@@ -789,18 +845,30 @@ function buildBeachMission(){
     boat:null, ramp:null, wireGroup:null, marker:null
   };
 
-  // sea
+  // dunes on the upper beach (LD-005) — also act as cover
+  world.bumps = [
+    {x:-60,z:38,a:1.5,s:9},{x:-12,z:30,a:1.1,s:7},{x:35,z:46,a:1.7,s:10},
+    {x:82,z:30,a:1.2,s:8},{x:-112,z:45,a:1.4,s:9},{x:2,z:54,a:0.9,s:6},
+    {x:120,z:40,a:1.3,s:9},{x:-150,z:35,a:1.2,s:8}
+  ];
+  for (const b of world.bumps) world.cover.push({x:b.x, z:b.z, r:b.s*0.9});
+  // displaced terrain: wet sand -> dry sand -> dunes -> bluff slope -> grass top / rock cliff
+  const terr = buildTerrainMesh(-200,200,-60,230,110,90,(x,z,h)=>{
+    if (z < -24) return 0x8f7f5c;                       // wet sand at the waterline
+    if (z > 96){
+      if (x>45 && h>4) return 0x77705f;                 // bare rock cliff face/top edge
+      return h>4.8 ? 0x57633a : 0x6e6648;               // grass top / dirt slope
+    }
+    return 0xb9a87b;                                    // dry sand
+  });
+  scene.add(terr);
+  // sea now ends at the waterline — boats unload in the surf, not on sand
   const sea = new THREE.Mesh(new THREE.PlaneGeometry(1000,600), mat(0x33505c));
-  sea.rotation.x = -Math.PI/2; sea.position.set(0,-0.4,-280); scene.add(sea);
-  // beach sand: from z=-60 (waterline) rising slightly to shingle at z=70
-  const sand = new THREE.Mesh(new THREE.PlaneGeometry(1000,200), mat(0xb9a87b));
-  sand.rotation.x = -Math.PI/2; sand.position.set(0,0,20); scene.add(sand);
-  // bluff plateau beyond z=110
-  const bluffTop = new THREE.Mesh(new THREE.PlaneGeometry(1000,300), mat(0x57633a));
-  bluffTop.rotation.x = -Math.PI/2; bluffTop.position.set(0,6,230); scene.add(bluffTop);
-  // bluff face
-  const bluff = new THREE.Mesh(new THREE.PlaneGeometry(1000,18), mat(0x6e6648));
-  bluff.position.set(0,3,110); bluff.rotation.x = -0.45; scene.add(bluff);
+  sea.rotation.x = -Math.PI/2; sea.position.set(0,-0.3,-336); scene.add(sea);
+  const surf = new THREE.Mesh(new THREE.PlaneGeometry(1000,7),
+    new THREE.MeshBasicMaterial({color:0xc9d3cd, transparent:true, opacity:0.55}));
+  surf.rotation.x = -Math.PI/2; surf.position.set(0,-0.18,-36); scene.add(surf);
+  world.surf = surf;
   // shingle bank (low stone ridge) at z=70
   const shingle = box(1000,1.3,5,0x8d8268,0,0.6,70); scene.add(shingle);
   world.colliders.push({x:0,z:70,hw:500,hd:2.5,blockUntil:'never'}); // climbable gap handled below
@@ -842,23 +910,24 @@ function buildBeachMission(){
   // bunkers + sandbag MG nests on the bluff line
   const bunkerSpots = [[-45,118],[25,122]];
   for (const [bx,bz] of bunkerSpots){
-    scene.add(buildBunker(bx,bz,Math.PI)); // slit faces sea
+    const bk = buildBunker(bx,bz,Math.PI); bk.position.y = groundHeight(bx,bz);
+    scene.add(bk);
     world.colliders.push({x:bx,z:bz,hw:3.8,hd:2.8});
-    const e = spawnEnemy(bx, bz-3.4, {fixed:true, acc:1.15});
-    e.mesh.position.y = 6; // on bluff height? bunker base at bluff top y6
-    e.mesh.position.set(bx, 4.6, bz-3.2);
+    const e = spawnEnemy(bx, bz-3.4, {fixed:true, acc:1.15, cls:'hmg'});
+    e.mesh.position.set(bx, groundHeight(bx,bz-3.4), bz-3.4);
   }
-  const nestSpots = [[-80,112],[0,114],[62,110]];
+  const nestSpots = [[-80,112],[0,114],[62,112]];
   for (const [nx,nz] of nestSpots){
-    const sb = buildSandbags(nx,nz,0); sb.position.y=5.2; scene.add(sb);
-    const e = spawnEnemy(nx, nz-1.5, {fixed:true});
-    e.mesh.position.set(nx, 4.8, nz-1.5);
+    const sb = buildSandbags(nx,nz,0); sb.position.y = groundHeight(nx,nz); scene.add(sb);
+    const e = spawnEnemy(nx, nz-1.5, {fixed:true, cls:'mg'});
+    e.mesh.position.set(nx, groundHeight(nx,nz-1.5), nz-1.5);
   }
   // trench infantry that count for the assault phase
   const trenchSpots = [[-30,104],[10,106],[40,103],[-8,108]];
+  let ti=0;
   for (const [tx,tz] of trenchSpots){
-    const e = spawnEnemy(tx,tz,{acc:0.85});
-    e.mesh.position.set(tx,4.2,tz);
+    const e = spawnEnemy(tx,tz,{acc:0.85, cls:(ti++===1?'mg':'rifle')});
+    e.mesh.position.set(tx, groundHeight(tx,tz), tz);
   }
   world.killGoal = world.enemies.length;
 
@@ -873,30 +942,56 @@ function buildBeachMission(){
 
   // exit draw marker (up the ravine) — appears later
   world.marker = makeMarker(0x59c1ff);
-  world.marker.position.set(60,6,160); world.marker.visible=false;
+  world.marker.position.set(60, groundHeight(60,160), 160); world.marker.visible=false;
   scene.add(world.marker);
   // wire breach marker
   world.breachMarker = makeMarker(0xffc24d);
   world.breachMarker.position.set(10,1,75); world.breachMarker.visible=false;
   scene.add(world.breachMarker);
 
-  // ---- Higgins boat ----
-  const boat = new THREE.Group();
-  boat.add(box(3.4,0.25,8.4,0x4f5a52,0,0.1,0));         // deck
-  boat.add(box(0.2,1.5,8.4,0x59645c,-1.7,0.85,0));      // walls
-  boat.add(box(0.2,1.5,8.4,0x59645c, 1.7,0.85,0));
-  boat.add(box(3.4,1.2,0.25,0x59645c,0,0.7,4.1));       // stern
-  const ramp = box(3.2,1.7,0.18,0x6a756d,0,0.95,-4.2);  // bow ramp
-  boat.add(ramp);
-  world.ramp = ramp;
-  for (let i=0;i<6;i++){
-    const s = buildSoldier(alliedFaction());
-    s.position.set(i%2? -0.9:0.9, 0.15, -2.6+Math.floor(i/2)*1.7);
-    s.scale.setScalar(0.95); boat.add(s);
+  // ---- Higgins boats (LD-002): a whole wave, unloading in the surf ----
+  function buildHiggins(x, z){
+    const b = new THREE.Group();
+    b.add(box(3.4,0.25,8.4,0x4f5a52,0,0.1,0));
+    b.add(box(0.2,1.5,8.4,0x59645c,-1.7,0.85,0));
+    b.add(box(0.2,1.5,8.4,0x59645c, 1.7,0.85,0));
+    b.add(box(3.4,1.2,0.25,0x59645c,0,0.7,4.1));
+    const ramp = box(3.2,1.7,0.18,0x6a756d,0,0.95,-4.2);
+    b.add(ramp);
+    b.userData.ramp = ramp;
+    b.userData.troops = [];
+    for (let i=0;i<6;i++){
+      const s = buildSoldier(alliedFaction(), i===0?'mg':'rifle');
+      s.position.set(i%2? -0.9:0.9, 0.15, -2.6+Math.floor(i/2)*1.7);
+      s.scale.setScalar(0.95); b.add(s);
+      b.userData.troops.push(s);
+    }
+    b.position.set(x,0,z);
+    scene.add(b);
+    return b;
   }
-  boat.position.set(8,0,-180);
-  scene.add(boat);
-  world.boat = boat;
+  world.boat = buildHiggins(8,-180);
+  world.ramp = world.boat.userData.ramp;
+  world.chargers = [];
+  world.extraBoats = [
+    {mesh:buildHiggins(-34,-196), landed:false, rampT:0},
+    {mesh:buildHiggins(52,-190),  landed:false, rampT:0}
+  ];
+  // troops storm out of a boat and charge for the shingle bank
+  world.disembark = function(boatGroup){
+    for (const s of boatGroup.userData.troops){
+      const wp = new THREE.Vector3();
+      s.getWorldPosition(wp);
+      boatGroup.remove(s);
+      s.position.copy(wp); s.position.y = 0;
+      s.scale.setScalar(1);
+      scene.add(s);
+      world.chargers.push({mesh:s, alive:true, dying:0, crouched:false,
+        tx:wp.x + (Math.random()-0.5)*14, sp:4.2+Math.random()*1.4,
+        bobSeed:Math.random()*6.28});
+    }
+    boatGroup.userData.troops = [];
+  };
 
   // player starts in boat
   player.pos.set(8,1.8,-176);
@@ -918,16 +1013,17 @@ function buildAirborneMission(){
     timers:{flak:1.2}, killGoal:0, kills:0, marker:null, chute:null, friendlies:[]
   };
 
-  // ground: dark fields
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(900,900), mat(0x2c3a22));
-  ground.rotation.x=-Math.PI/2; scene.add(ground);
-  // patchwork fields
-  for (let i=0;i<14;i++){
-    const f = new THREE.Mesh(new THREE.PlaneGeometry(40+Math.random()*60, 40+Math.random()*60),
-      mat(i%2?0x36452a:0x253420));
-    f.rotation.x=-Math.PI/2; f.position.set((Math.random()-0.5)*400, 0.02, (Math.random()-0.5)*400);
-    scene.add(f);
-  }
+  // rolling Norman fields (LD-005): low hills away from the village
+  world.bumps = [
+    {x:-90,z:-70,a:2.4,s:30},{x:75,z:-95,a:2.0,s:26},
+    {x:-65,z:30,a:1.2,s:16},{x:120,z:20,a:1.6,s:22},{x:30,z:-30,a:0.9,s:14}
+  ];
+  const terr = buildTerrainMesh(-250,250,-250,250,90,90,(x,z,h)=>{
+    const patch = (Math.floor(x/45)+Math.floor(z/45))%2===0;
+    if (h>1.2) return 0x3d4d2e;
+    return patch ? 0x36452a : 0x283823;
+  });
+  scene.add(terr);
   // hedgerows (bocage) bounding fields
   const rows = [[-60,-40,90,0],[40,-70,110,0],[-90,30,80,Math.PI/2],[90,10,120,Math.PI/2],[0,-110,160,0]];
   for (const [x,z,len,ry] of rows){
@@ -968,9 +1064,10 @@ function buildAirborneMission(){
 
   // enemies in village (hidden threat until regroup phase, but they exist)
   const spots = [[-8,70],[6,88],[-12,92],[12,110],[0,96],[-24,112],[26,90],[6,130]]; // streets & square only
+  let vi=0;
   for (const [x,z] of spots){
-    const e = spawnEnemy(x,z,{range:60,acc:0.8});
-    e.mesh.visible = true;
+    const e = spawnEnemy(x,z,{range:60,acc:0.8, cls:(vi===2||vi===5)?'mg':'rifle'});
+    vi++;
   }
   world.killGoal = world.enemies.length;
   // sandbag posts at square
@@ -994,6 +1091,125 @@ function buildAirborneMission(){
   showNote(unit.notes.land, ()=>{});
 }
 
+
+// ---------------- PLAYER PROFILE (LD-006) ----------------
+const PLAYER_CLS = {
+  rifle:{label:'RIFLEMAN', speed:6.2, auto:false, cooldown:0.22, regen:7},
+  mg:   {label:'MACHINE GUNNER', speed:5.3, auto:true,  cooldown:0.13, clip:20, regen:6},
+  medic:{label:'MEDIC', speed:6.5, auto:false, cooldown:0.26, clip:15, regen:15}
+};
+const profile = {name:'', cls:'rifle'};
+function classWeaponName(cls){
+  const brit = (alliedFaction()!=='us');
+  if (cls==='mg') return brit? 'BREN GUN' : 'BAR M1918';
+  if (cls==='medic') return brit? 'STEN MK II' : 'M1 CARBINE';
+  return unit.weapon;
+}
+
+// ---------------- WAVE BOATS / CHARGERS / BARRAGE ----------------
+let shakeT = 0;
+function updateBeachWave(dt){
+  if (world.type!=='beach') return;
+  // flanking boats run in and unload just off the sand
+  if (world.extraBoats){
+    for (const b of world.extraBoats){
+      if (!b.landed){
+        if (world.phase!=='boat' || world.boat.position.z > -170) b.mesh.position.z += 13*dt;
+        if (b.mesh.position.z >= -58){ b.landed = true; }
+      } else if (b.rampT < 1.2){
+        b.rampT += dt;
+        const r = b.mesh.userData.ramp;
+        r.rotation.x = Math.min(1.5, b.rampT*1.8);
+        if (b.rampT >= 1.1 && b.mesh.userData.troops.length) world.disembark(b.mesh);
+      }
+    }
+  }
+  // charging troops run for the shingle, take cover — and some don't make it (LD-004)
+  if (world.chargers){
+    for (const c of world.chargers){
+      if (!c.alive){
+        if (c.dying>0){ c.dying -= dt; c.mesh.rotation.x = -(1-Math.max(0,c.dying)/0.6)*Math.PI/2; }
+        continue;
+      }
+      if (c.crouched) continue;
+      const dx = c.tx - c.mesh.position.x, dz = 66 - c.mesh.position.z;
+      const d = Math.hypot(dx,dz);
+      c.mesh.position.x += dx/d*c.sp*0.25*dt;
+      c.mesh.position.z += dz/d*c.sp*dt;
+      collideEntity(c.mesh.position, 0.4);
+      c.mesh.position.y = groundHeight(c.mesh.position.x, c.mesh.position.z)
+        + Math.abs(Math.sin(performance.now()*0.013+c.bobSeed))*0.12;
+      c.mesh.lookAt(c.mesh.position.x+dx*0.1, c.mesh.position.y, c.mesh.position.z+5);
+      if (c.mesh.position.z >= 64){
+        c.crouched = true;
+        c.mesh.scale.y = 0.62;
+        c.mesh.position.y = groundHeight(c.mesh.position.x, c.mesh.position.z) - 0.25;
+      } else if (combatActive() && c.mesh.position.z > -28 && world.chargerLosses < 6 && Math.random() < dt*0.045){
+        c.alive = false; c.dying = 0.6;
+        world.chargerLosses = (world.chargerLosses||0) + 1;
+      }
+    }
+  }
+  // LD-003: mortar & artillery barrage while you're on the open sand
+  if (world.phase==='beach' || world.phase==='breach' || world.phase==='assault'){
+    world.timers.mortar = (world.timers.mortar===undefined? 2.5 : world.timers.mortar) - dt;
+    if (world.timers.mortar <= 0){
+      world.timers.mortar = 1.7 + Math.random()*2.2;
+      mortarStrike();
+    }
+  }
+}
+function mortarStrike(){
+  const mx = player.pos.x + (Math.random()-0.5)*54;
+  const mz = Math.max(-30, Math.min(92, player.pos.z + (Math.random()-0.5)*48));
+  const my = groundHeight(mx,mz);
+  flakPuff(mx, my+1.5, mz, 0x8a7050, 2.2);
+  const pd = Math.hypot(mx-player.pos.x, mz-player.pos.z);
+  shakeT = Math.max(shakeT, Math.max(0, 1 - pd/40));
+  if (pd < 6) hurtPlayer(18+Math.random()*12);
+  else if (pd < 11) hurtPlayer(7+Math.random()*7);
+  // shrapnel is indiscriminate
+  if (world.chargers) for (const c of world.chargers){
+    if (c.alive && Math.hypot(mx-c.mesh.position.x, mz-c.mesh.position.z) < 5){
+      c.alive=false; c.dying=0.6; world.chargerLosses=(world.chargerLosses||0)+1;
+    }
+  }
+  if (world.friendlies) for (const f of world.friendlies){
+    if (f.alive && Math.hypot(mx-f.mesh.position.x, mz-f.mesh.position.z) < 5) hurtFriendly(f);
+  }
+}
+
+// ---------------- MUSIC (LD-003) ----------------
+let musicOn = true, musicNodes = null, drumTimer = null, drumStep = 0;
+function startMusic(){
+  if (!musicOn || musicNodes) return;
+  const ctx = audio(); if (!ctx) return;
+  if (ctx.state==='suspended') ctx.resume();
+  const g = ctx.createGain(); g.gain.value = 0.05; g.connect(ctx.destination);
+  const f = ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value = 240; f.connect(g);
+  const o1 = ctx.createOscillator(); o1.type='sawtooth'; o1.frequency.value = 49;   // G1
+  const o2 = ctx.createOscillator(); o2.type='sawtooth'; o2.frequency.value = 73.4; // D2
+  o1.connect(f); o2.connect(f); o1.start(); o2.start();
+  musicNodes = {o1,o2,g};
+  drumStep = 0;
+  drumTimer = setInterval(()=>{
+    if (state!=='playing' || !musicOn) return;
+    const c = audio(); if (!c) return;
+    const tt = c.currentTime;
+    const o = c.createOscillator(), dg = c.createGain();
+    o.type='sine'; o.frequency.setValueAtTime(64, tt);
+    o.frequency.exponentialRampToValueAtTime(38, tt+0.22);
+    const loud = (drumStep%4===0) ? 0.22 : 0.1;     // war-drum pattern
+    dg.gain.setValueAtTime(loud, tt);
+    dg.gain.exponentialRampToValueAtTime(0.001, tt+0.3);
+    o.connect(dg); dg.connect(c.destination); o.start(tt); o.stop(tt+0.32);
+    drumStep++;
+  }, 640);
+}
+function stopMusic(){
+  if (musicNodes){ try{ musicNodes.o1.stop(); musicNodes.o2.stop(); }catch(e){} musicNodes = null; }
+  if (drumTimer){ clearInterval(drumTimer); drumTimer = null; }
+}
 // ---------------- UI HELPERS ----------------
 const $ = id => document.getElementById(id);
 function setObjective(t){ $('objective').textContent = t; }
@@ -1009,7 +1225,7 @@ function updateHUD(){
   $('hpLabel').textContent = hp>60? 'OK' : (hp>30? 'WOUNDED' : 'CRITICAL');
   $('hpLabel').style.color = hp>60? '#9fb06a' : (hp>30? '#e0b34a':'#e06050');
   $('lowVignette').style.opacity = hp<=0? 0 : (hp<35? 0.55 : 0);
-  $('ammo').textContent = unit.weapon+'  '+(player.reloading?'--':player.ammo)+' / '+player.clip;
+  $('ammo').textContent = (player.weaponName||unit.weapon)+'  '+(player.reloading?'--':player.ammo)+' / '+player.clip;
   const left = world ? world.enemies.filter(e=>e.alive).length : 0;
   $('kills').textContent = (unit.enemyLabel||'ENEMY')+': '+left;
 }
@@ -1028,13 +1244,14 @@ $('histBtn').addEventListener('click', ()=>{
 });
 let endSuccess = true;
 function showEnd(success){
+  stopMusic();
   state = 'end'; endSuccess = success;
   $('endStamp').textContent = success ? 'MISSION ACCOMPLISHED' : 'KILLED IN ACTION';
   $('endStamp').style.color = success? 'var(--olive)' : 'var(--blood)';
   $('endStamp').style.borderColor = $('endStamp').style.color;
   $('endTitle').textContent = unit.briefTitle;
   $('endBody').innerHTML = success
-    ? '<p><b>'+unit.name+'</b> — objectives secured. Well done, soldier.</p>'
+    ? '<p><b>PVT. '+(profile.name||'SOLDIER')+', '+unit.name+'</b> — objectives secured. Well done, soldier.</p>'
     : '<p>You fell on the field of battle, as so many did on 6 June 1944. The attack goes on without you.</p>';
   $('endBtn').textContent = success ? 'RETURN TO HEADQUARTERS' : 'TRY AGAIN';
   $('endScreen').classList.remove('hidden');
@@ -1065,6 +1282,17 @@ function initMenu(){
     });
     grid.appendChild(card);
   }
+  // LD-006: class picker + name field
+  document.querySelectorAll('.clsCard').forEach(c=>{
+    c.addEventListener('click', ()=>{
+      document.querySelectorAll('.clsCard').forEach(x=>x.classList.remove('sel'));
+      c.classList.add('sel');
+      profile.cls = c.dataset.cls;
+    });
+  });
+  $('solName').addEventListener('input', ()=>{
+    profile.name = $('solName').value.toUpperCase().replace(/[^A-Z ]/g,'').slice(0,14);
+  });
   $('backBtn').addEventListener('click', ()=>{
     $('briefing').classList.add('hidden');
     $('menu').classList.remove('hidden'); state='menu';
@@ -1075,16 +1303,29 @@ function initMenu(){
     startMission();
   });
   $('fsBtn').addEventListener('click', toggleFS);
+  $('musicBtn').addEventListener('click', ()=>{
+    musicOn = !musicOn;
+    if (!musicOn) stopMusic();
+    $('musicBtn').textContent = '♪ MUSIC: ' + (musicOn?'ON':'OFF');
+  });
 }
 
 function startMission(){
-  player.hp = 100; player.clip = unit.clip; player.ammo = unit.clip;
+  const C = PLAYER_CLS[profile.cls];
+  player.hp = 100;
+  player.clip = C.clip || unit.clip;
+  player.ammo = player.clip;
+  player.speed = C.speed; player.auto = C.auto;
+  player.cooldownBase = C.cooldown; player.regen = C.regen;
+  player.weaponName = classWeaponName(profile.cls);
   player.reloading = false; player.vy = 0;
+  $('solTag').textContent = 'PVT. ' + (profile.name||'SOLDIER') + ' — ' + C.label;
   if (world && world.chute){ camera.remove(world.chute); }
   if (viewmodel && viewmodel.parent) camera.remove(viewmodel);
   if (unit.type==='beach') buildBeachMission(); else buildAirborneMission();
   buildViewmodel2();
   $('hud').style.display='block';
+  toast('PVT. '+(profile.name||'SOLDIER')+' — MOVE OUT!', 2.5);
   $('actionBtn').style.display='none';
   state = (state==='note') ? 'note' : 'playing';
   updateHUD();
@@ -1097,17 +1338,17 @@ const raycaster = new THREE.Raycaster();
 function reload(){
   if (player.reloading || player.ammo===player.clip) return;
   player.reloading = true; sfx('click');
-  if (unit.weapon==='M1 GARAND' && player.ammo===0) sfx('ping');
+  if ((player.weaponName||'').indexOf('GARAND')>=0 && player.ammo===0) sfx('ping');
   setTimeout(()=>{ player.ammo = player.clip; player.reloading=false; updateHUD(); }, 1500);
   updateHUD();
 }
 function tryFire(){
   if (player.reloading || fireCooldown>0) return;
   if (player.ammo<=0){ sfx('click'); toast('RELOAD!  (R)'); return; }
-  player.ammo--; fireCooldown = 0.22; recoil = 1;
+  player.ammo--; fireCooldown = player.cooldownBase||0.22; recoil = 1;
   sfx('shot');
   muzzleFlash.material.opacity = 1;
-  if (player.ammo===0 && unit.weapon==='M1 GARAND') sfx('ping');
+  if (player.ammo===0 && (player.weaponName||'').indexOf('GARAND')>=0) sfx('ping');
   // raycast from screen center
   raycaster.setFromCamera({x:0,y:0}, camera);
   const meshes = world.enemies.filter(e=>e.alive).map(e=>e.mesh);
@@ -1181,24 +1422,43 @@ function updateEnemies(dt){
         e.mesh.position.z = e.anchor.z + az/ad*e.leash;
       }
       collideEntity(e.mesh.position, 0.45);
-      const baseY = world.type==='beach' ? groundHeight(e.mesh.position.z) : 0;
+      const baseY = groundHeight(e.mesh.position.x, e.mesh.position.z);
       e.mesh.position.y = baseY + Math.abs(Math.sin(performance.now()*0.011 + e.bobSeed))*0.08;
     }
     if (!firingAllowed || dist>e.range) continue;
     e.fireTimer -= dt;
     if (e.fireTimer<=0){
-      e.fireTimer = 1.5 + Math.random()*1.6;
-      mgBurst();
-      let p = 0.22 * e.acc * (1 - (dist/e.range)*0.55);
-      if (moving) p *= 0.55;
-      if (covered) p *= 0.4;
+      const C = ENEMY_CLS[e.cls];
+      e.fireTimer = C.interval[0] + Math.random()*(C.interval[1]-C.interval[0]);
+      for (let b=0;b<C.burst;b++) setTimeout(()=>sfx('eshot'), b*70);
       const muzzle = e.mesh.position.clone().add(new THREE.Vector3(0,1.4,0));
-      if (Math.random() < p){
-        tracer(muzzle, player.pos.clone());
-        hurtPlayer(8+Math.random()*9);
+      // LD-004: sometimes they shoot at your squad instead of you
+      let tgtF = null;
+      if (world.friendlies && world.friendlies.length && Math.random()<0.35){
+        let bd=1e9;
+        for (const f of world.friendlies){
+          if (!f.alive) continue;
+          const fd = Math.hypot(f.mesh.position.x-e.mesh.position.x, f.mesh.position.z-e.mesh.position.z);
+          if (fd<e.range && fd<bd){ bd=fd; tgtF=f; }
+        }
+      }
+      if (tgtF){
+        const aim = tgtF.mesh.position.clone().add(new THREE.Vector3(0,1.1,0));
+        for (let b=0;b<Math.min(C.burst,3);b++)
+          tracer(muzzle, aim.clone().add(new THREE.Vector3((Math.random()-0.5)*2,(Math.random()-0.5)*1,(Math.random()-0.5)*2)));
+        if (Math.random() < 0.3*e.acc) hurtFriendly(tgtF);
       } else {
-        const miss = player.pos.clone().add(new THREE.Vector3((Math.random()-0.5)*5, (Math.random()-0.5)*3, (Math.random()-0.5)*5));
-        tracer(muzzle, miss);
+        let p = 0.22 * e.acc * (1 - (dist/e.range)*0.55);
+        if (moving) p *= 0.55;
+        if (covered) p *= 0.4;
+        if (Math.random() < p){
+          tracer(muzzle, player.pos.clone());
+          const D = C.dmg;
+          hurtPlayer(D[0] + Math.random()*(D[1]-D[0]));
+        } else {
+          for (let b=0;b<Math.min(C.burst,3);b++)
+            tracer(muzzle, player.pos.clone().add(new THREE.Vector3((Math.random()-0.5)*5,(Math.random()-0.5)*3,(Math.random()-0.5)*5)));
+        }
       }
     }
   }
@@ -1206,16 +1466,44 @@ function updateEnemies(dt){
 
 
 // ---------------- FRIENDLY SQUAD ----------------
-function spawnFriendly(offX, offZ){
-  const m = buildSoldier(alliedFaction());
-  m.position.set(player.pos.x+offX, world.type==='beach'?groundHeight(player.pos.z):0, player.pos.z+offZ);
+const CLS_LABEL = {rifle:'RIFLEMAN', mg:'MACHINE GUNNER', medic:'MEDIC', hmg:'HEAVY MG'};
+function spawnFriendly(offX, offZ, cls){
+  cls = cls||'rifle';
+  const m = buildSoldier(alliedFaction(), cls);
+  m.position.set(player.pos.x+offX, groundHeight(player.pos.x+offX, player.pos.z+offZ), player.pos.z+offZ);
   scene.add(m);
-  world.friendlies.push({mesh:m, off:{x:offX, z:offZ}, fireTimer:1.5+Math.random()*2, bobSeed:Math.random()*6.28});
+  world.friendlies.push({mesh:m, off:{x:offX, z:offZ}, cls:cls, hp:3, alive:true, dying:0,
+    fireTimer:1.5+Math.random()*2, bobSeed:Math.random()*6.28, healTick:0});
+}
+function hurtFriendly(f){
+  f.hp -= 1;
+  if (f.hp<=0 && f.alive){
+    f.alive = false; f.dying = 0.6;
+    toast('MAN DOWN — YOUR '+CLS_LABEL[f.cls]+' IS HIT!', 2.5);
+    sfx('hurt');
+  }
 }
 function updateFriendlies(dt){
   if (!world.friendlies || !world.friendlies.length) return;
   const allowed = combatActive();
   for (const f of world.friendlies){
+    if (!f.alive){
+      if (f.dying>0){
+        f.dying -= dt;
+        f.mesh.rotation.x = -(1-Math.max(0,f.dying)/0.6) * Math.PI/2;
+      }
+      continue;
+    }
+    // medic heals you when close (LD-001)
+    if (f.cls==='medic' && player.hp<100 && player.hp>0){
+      const md = Math.hypot(f.mesh.position.x-player.pos.x, f.mesh.position.z-player.pos.z);
+      if (md < 5){
+        player.hp = Math.min(100, player.hp + 9*dt);
+        f.healTick -= dt;
+        if (f.healTick<=0){ f.healTick = 4; toast('Medic: "Hold still — patching you up!"', 1.6); }
+        updateHUD();
+      }
+    }
     // formation point behind/beside the player, rotated with player facing
     const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
     const tx = player.pos.x + f.off.z*sy + f.off.x*cy;
@@ -1230,7 +1518,7 @@ function updateFriendlies(dt){
       collideEntity(f.mesh.position, 0.45);
       movingNow = true;
     }
-    const baseY = world.type==='beach' ? groundHeight(f.mesh.position.z) : 0;
+    const baseY = groundHeight(f.mesh.position.x, f.mesh.position.z);
     f.mesh.position.y = baseY + (movingNow ? Math.abs(Math.sin(performance.now()*0.012+f.bobSeed))*0.09 : 0);
     // pick nearest living enemy to face & engage
     let best=null, bd=1e9;
@@ -1240,16 +1528,17 @@ function updateFriendlies(dt){
       const ed=Math.hypot(ex,ez);
       if (ed<bd){ bd=ed; best=e; }
     }
-    if (best && bd<95 && allowed){
+    if (best && bd<95 && allowed && f.cls!=='medic'){
       f.mesh.lookAt(best.mesh.position.x, f.mesh.position.y, best.mesh.position.z);
       f.fireTimer -= dt;
       if (f.fireTimer<=0){
-        f.fireTimer = 2.2+Math.random()*2.5;
-        sfx('eshot');
+        f.fireTimer = (f.cls==='mg' ? 1.3+Math.random()*1.6 : 2.2+Math.random()*2.5);
+        if (f.cls==='mg'){ sfx('eshot'); setTimeout(()=>sfx('eshot'),70); setTimeout(()=>sfx('eshot'),140); }
+        else sfx('eshot');
         const muzzle = f.mesh.position.clone().add(new THREE.Vector3(0,1.4,0));
         const aim = best.mesh.position.clone().add(new THREE.Vector3((Math.random()-0.5)*1.5,1.1,(Math.random()-0.5)*1.5));
         tracer(muzzle, aim, 0xa8ffb0);
-        if (Math.random() < 0.22){
+        if (Math.random() < (f.cls==='mg' ? 0.3 : 0.22)){
           best.hp -= 1;
           if (best.hp<=0){ best.alive=false; best.dying=0.6; world.kills++; toast('Your squad got one!',1.4); updateHUD(); }
         }
@@ -1261,11 +1550,44 @@ function updateFriendlies(dt){
 }
 
 // ---------------- MOVEMENT ----------------
-function groundHeight(z){
-  if (world.type==='air') return 0;
-  if (z < 100) return 0;
-  if (z < 120) return (z-100)/20 * 6;
-  return 6;
+// analytic terrain: gaussian bumps (dunes/hills) + beach bluff/cliff rise.
+// The visual mesh is displaced with the SAME function, so feet always match ground.
+function groundHeight(x,z){
+  if (!world) return 0;
+  let h = 0;
+  if (world.bumps){
+    for (const b of world.bumps){
+      const dx=(x-b.x)/b.s, dz=(z-b.z)/b.s;
+      h += b.a * Math.exp(-(dx*dx+dz*dz));
+    }
+  }
+  if (world.type==='beach'){
+    const cliff = x > 45;                       // right flank is a cliff
+    const z0 = cliff?104:100, z1 = cliff?116:125, top = cliff?9:6;
+    if (z>=z1) h += top;
+    else if (z>z0){ const t=(z-z0)/(z1-z0); h += top*(t*t*(3-2*t)); }
+  }
+  return h;
+}
+function buildTerrainMesh(x0,x1,z0,z1,segX,segZ,colorFn){
+  const geo = new THREE.PlaneGeometry(x1-x0, z1-z0, segX, segZ);
+  geo.rotateX(-Math.PI/2);
+  const pos = geo.attributes.position;
+  const cx=(x0+x1)/2, cz=(z0+z1)/2, colors=[];
+  const col = new THREE.Color();
+  for (let i=0;i<pos.count;i++){
+    const vx = pos.getX(i)+cx, vz = pos.getZ(i)+cz;
+    const h = groundHeight(vx,vz);
+    pos.setY(i, h);
+    col.set(colorFn(vx,vz,h));
+    const n = 0.94 + Math.random()*0.1;        // subtle ground noise
+    colors.push(col.r*n, col.g*n, col.b*n);
+  }
+  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors,3));
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({vertexColors:true}));
+  m.position.set(cx,0,cz);
+  return m;
 }
 function collideEntity(pos, radius){
   for (const c of world.colliders){
@@ -1314,8 +1636,9 @@ function updatePlayer(dt){
       const dd = Math.hypot(fx-player.pos.x, fy-player.pos.y, fz-player.pos.z);
       if (dd<14) hurtPlayer(6+Math.random()*8);
     }
-    if (player.pos.y <= 1.8){
-      player.pos.y = 1.8;
+    const lh = groundHeight(player.pos.x, player.pos.z) + 1.8;
+    if (player.pos.y <= lh){
+      player.pos.y = lh;
       camera.remove(world.chute);
       world.phase = 'regroup';
       setObjective('ASSEMBLE — REACH THE BLUE RALLY MARKER');
@@ -1331,7 +1654,7 @@ function updatePlayer(dt){
       const sx=(Math.random()-0.5)*60;
       tracer(new THREE.Vector3(sx,8,130), new THREE.Vector3(sx+(Math.random()-0.5)*30, 4, world.boat.position.z-30));
     }
-    if (world.boat.position.z >= -52){
+    if (world.boat.position.z >= -58){
       world.phase = 'rampdrop'; world.timers.boat = 0;
       sfx('boom');
     }
@@ -1342,15 +1665,18 @@ function updatePlayer(dt){
     world.ramp.position.y = 0.95 - Math.min(1,world.timers.boat)*0.7;
     if (world.timers.boat > 1.1){
       world.phase = 'beach';
+      startMusic();
+      world.disembark(world.boat);
       setObjective('GET OFF THE BEACH — REACH THE SHINGLE BANK AHEAD');
       toast('GO! GO! GO!');
-      spawnFriendly(-2.0, 2.0); spawnFriendly(2.0, 2.0); spawnFriendly(0, 3.4);
+      spawnFriendly(-2.0, 2.0, 'mg'); spawnFriendly(2.0, 2.0, 'rifle'); spawnFriendly(0, 3.4, 'medic');
     }
     player.pos.set(world.boat.position.x, 1.9, world.boat.position.z+2.6);
   } else {
     // normal ground movement
     const sin=Math.sin(player.yaw), cos=Math.cos(player.yaw);
-    const sp = player.speed;
+    let sp = player.speed;
+    if (world.type==='beach' && player.pos.z < -32) sp *= 0.6;   // wading through surf
     player.pos.x += (mx*cos - mz*sin) * sp * dt;
     player.pos.z += (-mx*sin - mz*cos) * sp * dt;
     collide();
@@ -1358,7 +1684,7 @@ function updatePlayer(dt){
     player.pos.x = Math.max(-180, Math.min(180, player.pos.x));
     player.pos.z = Math.max(-200, Math.min(220, player.pos.z));
     // gravity + jumping
-    const gh = groundHeight(player.pos.z) + 1.8;
+    const gh = groundHeight(player.pos.x, player.pos.z) + 1.8;
     player.vy -= 24*dt;
     player.pos.y += player.vy*dt;
     if (player.pos.y <= gh){ player.pos.y = gh; player.vy = 0; player.grounded = true; }
@@ -1369,9 +1695,19 @@ function updatePlayer(dt){
   camera.rotation.set(0,0,0);
   camera.rotateY(player.yaw);
   camera.rotateX(player.pitch);
+  if (shakeT > 0){
+    camera.rotateX((Math.random()-0.5)*0.05*shakeT);
+    camera.rotateZ((Math.random()-0.5)*0.05*shakeT);
+    camera.position.y += (Math.random()-0.5)*0.12*shakeT;
+    shakeT = Math.max(0, shakeT - dt*1.6);
+  }
 
   // firing (semi-auto on press)
-  if (input.fire && !fireHeld && !inBoat && !descending && world.phase!=='rampdrop') tryFire();
+  const canShoot = !inBoat && !descending && world.phase!=='rampdrop';
+  if (canShoot){
+    if (player.auto){ if (input.fire) tryFire(); }
+    else if (input.fire && !fireHeld) tryFire();
+  }
   fireHeld = input.fire;
   fireCooldown = Math.max(0, fireCooldown-dt);
   recoil = Math.max(0, recoil-dt*5);
@@ -1384,7 +1720,7 @@ function updatePlayer(dt){
   // health regen
   player.lastHurt += dt;
   if (player.lastHurt>5 && player.hp<100 && player.hp>0){
-    player.hp = Math.min(100, player.hp + 7*dt); updateHUD();
+    player.hp = Math.min(100, player.hp + (player.regen||7)*dt); updateHUD();
   }
 }
 
@@ -1434,8 +1770,9 @@ function updatePhases(dt){
     if (world.phase==='regroup'){
       if (dist2D(world.marker.position.x, world.marker.position.z) < 4){
         world.phase='village';
+        startMusic();
         world.marker.visible=false;
-        spawnFriendly(-2.0, 2.0); spawnFriendly(2.0, 2.0); spawnFriendly(0, 3.4);
+        spawnFriendly(-2.0, 2.0, 'mg'); spawnFriendly(2.0, 2.0, 'rifle'); spawnFriendly(0, 3.4, 'medic');
         toast('Click... click-clack. Three troopers fall in beside you.');
         showNote(unit.notes.regroup, ()=>{
           setObjective('CLEAR THE VILLAGE — DESTROY THE GARRISON');
@@ -1467,6 +1804,7 @@ function animate(){
     updatePlayer(dt);
     updateEnemies(dt);
     updateFriendlies(dt);
+    updateBeachWave(dt);
     updatePhases(dt);
     updateTracers(dt);
     updatePuffs(dt);
