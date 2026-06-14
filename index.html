@@ -162,6 +162,7 @@
     <p class="meta" style="margin-top:14px">Mac: WASD move · mouse look · click fire · R reload · E action · SPACE jump · F fullscreen<br>iPad: left stick move · drag right side to look · FIRE / JUMP / RELOAD buttons</p>
     <button class="btn secondary" id="fsBtn" style="margin-top:6px">⛶ FULL SCREEN</button>
     <button class="btn secondary" id="musicBtn" style="margin-top:6px">♪ MUSIC: ON</button>
+    <button class="btn secondary" id="voiceBtn" style="margin-top:6px">🗣 VOICES: ON</button>
   </div>
 </div>
 
@@ -378,6 +379,14 @@ function sfx(type){
     o.type='square'; o.frequency.value=900;
     g.gain.setValueAtTime(0.08,t); g.gain.exponentialRampToValueAtTime(0.001,t+0.05);
     o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t+0.06);
+  } else if (type==='thunder'){
+    const len=1.6, buf=ctx.createBuffer(1,ctx.sampleRate*len,ctx.sampleRate);
+    const d=buf.getChannelData(0);
+    for(let i=0;i<d.length;i++){ const env=Math.pow(1-i/d.length,1.6); d[i]=(Math.random()*2-1)*env; }
+    const src=ctx.createBufferSource(); src.buffer=buf;
+    const f=ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=160;
+    const g=ctx.createGain(); g.gain.value=0.45;
+    src.connect(f); f.connect(g); g.connect(ctx.destination); src.start(t);
   } else if (type==='hurt'){
     const o=ctx.createOscillator(), g=ctx.createGain();
     o.type='sawtooth'; o.frequency.setValueAtTime(180,t);
@@ -774,6 +783,7 @@ function spawnEnemy(x,z,opts){
 
 const tracers = [];
 function tracer(from,to,color){
+  if (tracers.length > 70) return;   // PERF cap during heavy fire
   const g = new THREE.BufferGeometry().setFromPoints([from.clone(), to.clone()]);
   const line = new THREE.Line(g, new THREE.LineBasicMaterial({color:color||0xffd27a, transparent:true, opacity:0.95}));
   scene.add(line);
@@ -809,14 +819,48 @@ function updatePuffs(dt){
 let viewmodel=null, muzzleFlash=null, recoil=0;
 function buildViewmodel(){
   viewmodel = new THREE.Group();
-  const stock = box(0.09,0.1,0.55,0x4a3520,0,0,0.15);
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,0.5,8), mat(0x2b2f33));
-  barrel.rotation.x = Math.PI/2; barrel.position.set(0,0.03,-0.35);
-  muzzleFlash = new THREE.Mesh(new THREE.SphereGeometry(0.08,6,6),
-    new THREE.MeshBasicMaterial({color:0xffe9a0, transparent:true, opacity:0}));
-  muzzleFlash.position.set(0,0.03,-0.62);
-  viewmodel.add(stock,barrel,muzzleFlash);
-  viewmodel.position.set(0.34,-0.3,-0.7);
+  const cls = profile.cls;
+  if (cls==='mg'){
+    // first-person machine gun (LD-013): heavier body, longer barrel, bipod, magazine
+    const body = box(0.12,0.13,0.7,0x23272b,0,0,0.1);
+    const stock = box(0.09,0.11,0.3,0x3a2c1a,0,-0.01,0.42);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.62,8), mat(0x1b1e21));
+    barrel.rotation.x = Math.PI/2; barrel.position.set(0,0.04,-0.45);
+    const mag = box(0.08,0.26,0.12,0x2b2f24,0,-0.2,-0.02);          // curved BAR/Bren-style mag
+    const bipodL = box(0.02,0.26,0.02,0x1b1e21,-0.07,-0.16,-0.6); bipodL.rotation.x=0.3;
+    const bipodR = box(0.02,0.26,0.02,0x1b1e21, 0.07,-0.16,-0.6); bipodR.rotation.x=0.3;
+    const sight = box(0.02,0.06,0.02,0x1b1e21,0,0.1,-0.2);
+    muzzleFlash = new THREE.Mesh(new THREE.SphereGeometry(0.11,6,6),
+      new THREE.MeshBasicMaterial({color:0xffe9a0, transparent:true, opacity:0}));
+    muzzleFlash.position.set(0,0.04,-0.78);
+    viewmodel.add(body,stock,barrel,mag,bipodL,bipodR,sight,muzzleFlash);
+    viewmodel.position.set(0.3,-0.32,-0.62);
+  } else if (cls==='medic'){
+    // first-person medical kit (LD-012): white aid bag with red cross, held instead of a rifle
+    const bag = box(0.34,0.26,0.22,0xe8e4d8,0,-0.02,-0.05);
+    const flapV = box(0.07,0.2,0.01,0xb22222,0,0,-0.162);          // red cross
+    const flapH = box(0.22,0.07,0.01,0xb22222,0,0,-0.162);
+    const strap = box(0.05,0.1,0.24,0x6b5a3e,0.14,0.1,-0.05);
+    const handR = new THREE.Mesh(new THREE.SphereGeometry(0.07,7,7), mat(0xc8a482));
+    handR.position.set(-0.16,-0.04,0.04);
+    // tiny muzzleFlash kept (hidden) so shared shooting code still works for the carbine sidearm
+    muzzleFlash = new THREE.Mesh(new THREE.SphereGeometry(0.05,5,5),
+      new THREE.MeshBasicMaterial({color:0xffe9a0, transparent:true, opacity:0}));
+    muzzleFlash.position.set(0,0,-0.2);
+    viewmodel.add(bag,flapV,flapH,strap,handR,muzzleFlash);
+    viewmodel.position.set(0.32,-0.34,-0.6);
+  } else {
+    // rifleman (default)
+    const stock = box(0.09,0.1,0.55,0x4a3520,0,0,0.15);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,0.5,8), mat(0x2b2f33));
+    barrel.rotation.x = Math.PI/2; barrel.position.set(0,0.03,-0.35);
+    muzzleFlash = new THREE.Mesh(new THREE.SphereGeometry(0.08,6,6),
+      new THREE.MeshBasicMaterial({color:0xffe9a0, transparent:true, opacity:0}));
+    muzzleFlash.position.set(0,0.03,-0.62);
+    viewmodel.add(stock,barrel,muzzleFlash);
+    viewmodel.position.set(0.34,-0.3,-0.7);
+  }
+  viewmodel.userData.homeZ = viewmodel.position.z;
   camera.add(viewmodel);
 }
 
@@ -824,6 +868,7 @@ function buildViewmodel(){
 function clearScene(){
   while(scene.children.length) scene.remove(scene.children[0]);
   tracers.length=0; puffs.length=0;
+  rainPts=null; rainGeo=null; cloudLayer=null; flashLight=null;
 }
 
 function baseWorld(skyColor, fogNear, fogFar, sunI, ambI, fogColor){
@@ -838,7 +883,7 @@ function baseWorld(skyColor, fogNear, fogFar, sunI, ambI, fogColor){
 
 // =================== BEACH MISSION ===================
 function buildBeachMission(){
-  baseWorld(0x8e9aa3, 30, 420, 0.75, 0.55);
+  baseWorld(0x7d8389, 26, 300, 0.42, 0.6, 0x868b8f);  // overcast, low cloud, reduced sun
   world = {
     type:'beach', phase:'boat', enemies:[], colliders:[], cover:[],
     timers:{boat:0, breach:0}, killGoal:0, kills:0, friendlies:[],
@@ -869,6 +914,7 @@ function buildBeachMission(){
     new THREE.MeshBasicMaterial({color:0xc9d3cd, transparent:true, opacity:0.55}));
   surf.rotation.x = -Math.PI/2; surf.position.set(0,-0.18,-36); scene.add(surf);
   world.surf = surf;
+  buildWeather({rain:true, count:950, cloudColor:0x6b7177, night:false});
   // shingle bank (low stone ridge) at z=70
   const shingle = box(1000,1.3,5,0x8d8268,0,0.6,70); scene.add(shingle);
   world.colliders.push({x:0,z:70,hw:500,hd:2.5,blockUntil:'never'}); // climbable gap handled below
@@ -908,7 +954,7 @@ function buildBeachMission(){
   }
 
   // bunkers + sandbag MG nests on the bluff line
-  const bunkerSpots = [[-45,118],[25,122]];
+  const bunkerSpots = [[-45,118],[25,122],[95,118]];
   for (const [bx,bz] of bunkerSpots){
     const bk = buildBunker(bx,bz,Math.PI); bk.position.y = groundHeight(bx,bz);
     scene.add(bk);
@@ -916,14 +962,15 @@ function buildBeachMission(){
     const e = spawnEnemy(bx, bz-3.4, {fixed:true, acc:1.15, cls:'hmg'});
     e.mesh.position.set(bx, groundHeight(bx,bz-3.4), bz-3.4);
   }
-  const nestSpots = [[-80,112],[0,114],[62,112]];
+  const nestSpots = [[-110,112],[-80,114],[-30,116],[0,114],[40,116],[62,112],[88,114]];
   for (const [nx,nz] of nestSpots){
     const sb = buildSandbags(nx,nz,0); sb.position.y = groundHeight(nx,nz); scene.add(sb);
     const e = spawnEnemy(nx, nz-1.5, {fixed:true, cls:'mg'});
     e.mesh.position.set(nx, groundHeight(nx,nz-1.5), nz-1.5);
   }
   // trench infantry that count for the assault phase
-  const trenchSpots = [[-30,104],[10,106],[40,103],[-8,108]];
+  const trenchSpots = [[-95,104],[-72,107],[-50,105],[-30,104],[-8,108],[10,106],[28,105],
+                       [40,103],[58,107],[78,105],[100,106],[-18,102],[20,109]];
   let ti=0;
   for (const [tx,tz] of trenchSpots){
     const e = spawnEnemy(tx,tz,{acc:0.85, cls:(ti++===1?'mg':'rifle')});
@@ -975,7 +1022,9 @@ function buildBeachMission(){
   world.chargers = [];
   world.extraBoats = [
     {mesh:buildHiggins(-34,-196), landed:false, rampT:0},
-    {mesh:buildHiggins(52,-190),  landed:false, rampT:0}
+    {mesh:buildHiggins(-70,-188), landed:false, rampT:0},
+    {mesh:buildHiggins(52,-190),  landed:false, rampT:0},
+    {mesh:buildHiggins(88,-198),  landed:false, rampT:0}
   ];
   // troops storm out of a boat and charge for the shingle bank
   world.disembark = function(boatGroup){
@@ -1005,7 +1054,7 @@ function buildBeachMission(){
 function buildAirborneMission(){
   baseWorld(0x101620, 25, 260, 0.18, 0.34, 0x0c1118);
   // moonlight
-  const moon = new THREE.DirectionalLight(0x9fb6d8, 0.5);
+  const moon = new THREE.DirectionalLight(0x9fb6d8, 0.42);
   moon.position.set(-40,100,-30); scene.add(moon);
 
   world = {
@@ -1063,7 +1112,8 @@ function buildAirborneMission(){
   }
 
   // enemies in village (hidden threat until regroup phase, but they exist)
-  const spots = [[-8,70],[6,88],[-12,92],[12,110],[0,96],[-24,112],[26,90],[6,130]]; // streets & square only
+  const spots = [[-8,70],[8,74],[6,88],[-14,86],[-12,92],[18,94],[0,96],[12,110],
+                 [-24,112],[24,108],[26,90],[-30,98],[6,130],[-6,124],[16,128],[-18,118]]; // streets & square only
   let vi=0;
   for (const [x,z] of spots){
     const e = spawnEnemy(x,z,{range:60,acc:0.8, cls:(vi===2||vi===5)?'mg':'rifle'});
@@ -1087,6 +1137,7 @@ function buildAirborneMission(){
 
   player.pos.set((Math.random()-0.5)*40, 220, -60+(Math.random()-0.5)*30);
   player.yaw = Math.PI; player.pitch = -0.5;
+  buildWeather({rain:true, count:650, cloudColor:0x232c38, night:true});
   setObjective('STEER YOUR CANOPY — LAND IN THE FIELDS');
   showNote(unit.notes.land, ()=>{});
 }
@@ -1106,6 +1157,78 @@ function classWeaponName(cls){
   return unit.weapon;
 }
 
+
+// ---------------- WEATHER (LD-016: historical June 6 storm) ----------------
+let rainPts=null, rainGeo=null, cloudLayer=null, thunderTimer=0, flashLight=null;
+function buildWeather(opts){
+  // opts: {rain:bool, count, sky, cloudColor, night:bool}
+  world.weather = opts;
+  // drifting low cloud (overcast deck)
+  cloudLayer = new THREE.Group();
+  for (let i=0;i<14;i++){
+    const c = new THREE.Mesh(new THREE.SphereGeometry(18+Math.random()*16, 7, 5),
+      new THREE.MeshLambertMaterial({color:opts.cloudColor, transparent:true, opacity:0.55}));
+    c.position.set((Math.random()-0.5)*420, 70+Math.random()*30, (Math.random()-0.5)*420);
+    c.scale.y = 0.4;
+    cloudLayer.add(c);
+  }
+  scene.add(cloudLayer);
+  // rain as a moving point cloud that follows the camera
+  if (opts.rain){
+    const N = opts.count || 900;
+    const pos = new Float32Array(N*3);
+    for (let i=0;i<N;i++){
+      pos[i*3]   = (Math.random()-0.5)*120;
+      pos[i*3+1] = Math.random()*70;
+      pos[i*3+2] = (Math.random()-0.5)*120;
+    }
+    rainGeo = new THREE.BufferGeometry();
+    rainGeo.setAttribute('position', new THREE.BufferAttribute(pos,3));
+    const m = new THREE.PointsMaterial({color: opts.night?0x9fb0c0:0xc4ccd2,
+      size:0.5, transparent:true, opacity:0.5});
+    rainPts = new THREE.Points(rainGeo, m);
+    scene.add(rainPts);
+  }
+  // flash light for lightning (kept dark until a strike)
+  flashLight = new THREE.PointLight(0xdfe8ff, 0, 600);
+  flashLight.position.set(0,120,0); scene.add(flashLight);
+  thunderTimer = 8 + Math.random()*10;
+}
+function updateWeather(dt){
+  if (!world.weather) return;
+  if (cloudLayer) cloudLayer.position.x = (cloudLayer.position.x + dt*2.2) % 200; // wind drift
+  if (rainPts){
+    rainPts.position.set(camera.position.x, 0, camera.position.z);
+    const p = rainGeo.attributes.position; const a = p.array;
+    for (let i=0;i<a.length;i+=3){
+      a[i+1] -= (38)*dt;            // fall speed
+      a[i]   += (9)*dt;             // wind slant
+      if (a[i+1] < 0){
+        a[i+1] = 60 + Math.random()*10;
+        a[i]   = (Math.random()-0.5)*120;
+        a[i+2] = (Math.random()-0.5)*120;
+      }
+    }
+    p.needsUpdate = true;
+  }
+  // lightning + thunder
+  thunderTimer -= dt;
+  if (flashLight){
+    if (thunderTimer <= 0){
+      thunderTimer = 9 + Math.random()*14;
+      flashLight.position.set(camera.position.x + (Math.random()-0.5)*120, 130, camera.position.z + (Math.random()-0.5)*120);
+      flashLight.intensity = 2.6;
+      setTimeout(()=>{ if(flashLight) flashLight.intensity = 1.4; }, 70);
+      setTimeout(()=>{ if(flashLight) flashLight.intensity = 0; }, 150);
+      const delay = 600 + Math.random()*1400;   // thunder lags the flash
+      setTimeout(()=>{ if(state==='playing') sfx('thunder'); }, delay);
+    } else {
+      flashLight.intensity = Math.max(0, flashLight.intensity - dt*8);
+    }
+  }
+  // choppy sea
+  if (world.surf) world.surf.position.y = -0.18 + Math.sin(performance.now()*0.003)*0.12;
+}
 // ---------------- WAVE BOATS / CHARGERS / BARRAGE ----------------
 let shakeT = 0;
 function updateBeachWave(dt){
@@ -1144,7 +1267,7 @@ function updateBeachWave(dt){
         c.crouched = true;
         c.mesh.scale.y = 0.62;
         c.mesh.position.y = groundHeight(c.mesh.position.x, c.mesh.position.z) - 0.25;
-      } else if (combatActive() && c.mesh.position.z > -28 && world.chargerLosses < 6 && Math.random() < dt*0.045){
+      } else if (combatActive() && c.mesh.position.z > -28 && world.chargerLosses < 14 && Math.random() < dt*0.045){
         c.alive = false; c.dying = 0.6;
         world.chargerLosses = (world.chargerLosses||0) + 1;
       }
@@ -1210,6 +1333,204 @@ function stopMusic(){
   if (musicNodes){ try{ musicNodes.o1.stop(); musicNodes.o2.stop(); }catch(e){} musicNodes = null; }
   if (drumTimer){ clearInterval(drumTimer); drumTimer = null; }
 }
+
+// ---------------- VOICE BARKS (LD-015) ----------------
+// Uses the browser's built-in speech engine, so it needs no audio files and
+// can pick a British / German / American voice by language code.
+let voicesOn = true, speechVoices = [];
+function loadSpeechVoices(){ try{ speechVoices = window.speechSynthesis.getVoices()||[]; }catch(e){} }
+if ('speechSynthesis' in window){
+  loadSpeechVoices();
+  window.speechSynthesis.onvoiceschanged = loadSpeechVoices;
+}
+let speechUnlocked = false;
+function unlockSpeech(){
+  if (!('speechSynthesis' in window)) return;
+  try{
+    window.speechSynthesis.resume();
+    const u = new SpeechSynthesisUtterance(' ');   // silent primer inside a user gesture
+    u.volume = 0;
+    window.speechSynthesis.speak(u);
+    speechUnlocked = true;
+  }catch(e){}
+  loadSpeechVoices();
+}
+// iOS/Safari silently pauses the speech queue; nudge it awake while playing
+setInterval(()=>{
+  if (voicesOn && 'speechSynthesis' in window && state==='playing'){
+    try{ window.speechSynthesis.resume(); }catch(e){}
+  }
+}, 4000);
+// language preference per faction
+const VOICE_LANG = {
+  us:['en-US','en'], uk:['en-GB','en-AU','en'], ca:['en-CA','en-GB','en-US','en'], de:['de-DE','de']
+};
+// preferred voice NAMES (substring match) — these are the real regional voices that
+// ship on iPad/Mac (Apple), Chrome (Google) and Windows (Microsoft).
+const VOICE_NAMES = {
+  uk:['Daniel','Arthur','Oliver','Serena','Kate','Stephanie','Martha','Jamie',
+      'Google UK English','Microsoft George','Microsoft Hazel','Microsoft Susan'],
+  us:['Aaron (Enhanced)','Evan (Enhanced)','Nicky (Enhanced)','Samantha (Enhanced)',
+      'Aaron','Evan','Nicky','Samantha','Tom','Google US English',
+      'Microsoft David','Microsoft Guy','Microsoft Mark','Microsoft Zira'],
+  ca:['Samantha','Aaron','Daniel','Arthur','Google US English'],
+  de:['Anna','Markus','Petra','Helena','Yannick','Martin','Viktor',
+      'Google Deutsch','Microsoft Hedda','Microsoft Stefan','Microsoft Katja']
+};
+// macOS ships joke voices under en-US; never use these for soldiers
+const NOVELTY = ['albert','bad news','bahh','bells','boing','bubbles','cellos','good news',
+  'jester','organ','superstar','trinoids','whisper','wobble','zarvox','junior','ralph','kathy','fred'];
+function isNovelty(v){ const n=(v.name||'').toLowerCase(); return NOVELTY.some(k=>n===k); }
+function hasVoiceFor(faction){ return !!pickVoiceFor(faction); }
+function pickVoiceFor(faction){
+  const names = VOICE_NAMES[faction]||[];
+  const base0 = (VOICE_LANG[faction]||['en'])[0].split('-')[0].toLowerCase();
+  // 0) any high-quality "Enhanced"/"Premium" voice in the right base language
+  let hq = speechVoices.find(x=>x.lang && x.lang.toLowerCase().indexOf(base0)===0 &&
+            /enhanced|premium/i.test(x.name||''));
+  if (hq) return hq;
+  // 1) preferred named voices, in order
+  for (const want of names){
+    const v = speechVoices.find(x=>x.name && x.name.toLowerCase().indexOf(want.toLowerCase())>=0);
+    if (v) return v;
+  }
+  const langs = VOICE_LANG[faction]||['en'];
+  // 2) exact regional lang (e.g. en-GB), skipping novelty voices
+  const want0 = langs[0].toLowerCase();
+  let v = speechVoices.find(x=>x.lang && x.lang.toLowerCase()===want0 && !isNovelty(x));
+  if (v) return v;
+  // 3) any same-base-language non-novelty voice
+  const base = want0.split('-')[0];
+  v = speechVoices.find(x=>x.lang && x.lang.toLowerCase().indexOf(base)===0 && !isNovelty(x));
+  if (v) return v;
+  // 4) anything
+  return speechVoices.find(x=>!isNovelty(x)) || speechVoices[0] || null;
+}
+const BARKS = {
+  us:{
+    assault:['Move, move, move!','Get off the beach!','Go, go, go!','Up the beach!'],
+    fire:['Take cover!','Keep your head down!','Incoming!'],
+    spot:['Enemy ahead!','Gun on the bluff!','Watch the bunker!'],
+    down:['Man down!','Medic!','We got a man hit!'],
+    push:['Keep pushing!','Move up!','On me!'],
+    win:['Objective clear!','We did it!','Bunker secured!']
+  },
+  uk:{
+    assault:['Push on, lads!','Keep moving!','Up you get, men!','Forward!'],
+    fire:['Heads down!','Take cover, lads!','Incoming!'],
+    spot:['Enemy ahead!','Jerry on the ridge!','Mind the pillbox!'],
+    down:['Man down!','Stretcher bearer!','Medic, over here!'],
+    push:['Press on!','Keep at it, lads!','With me!'],
+    win:['Position cleared!','Well done, lads!','That\'s the spirit!']
+  },
+  ca:{
+    assault:['Move up, boys!','Keep going!','Off the beach!','Forward, boys!'],
+    fire:['Take cover!','Get down!','Incoming!'],
+    spot:['Enemy ahead!','Gun up top!','Watch that bunker!'],
+    down:['Man down!','Medic!','We got one hit!'],
+    push:['Keep pushing, boys!','Move up!','On me!'],
+    win:['Cleared!','Good work, boys!','That\'s it!']
+  },
+  de:{
+    assault:['Sie kommen!','Achtung! Feindkontakt!','Halt! Stehenbleiben!'],
+    fire:['Feuer frei!','Feuer!','Sperrfeuer!'],
+    spot:['Feind am Strand!','Da! Amerikaner!','Vorsicht!'],
+    down:['Mann getroffen!','Sanitäter!','Stellung halten!'],
+    push:['Nicht nachlassen!','Haltet die Stellung!','Nachladen!'],
+    win:['']
+  }
+};
+let lastBarkAt = 0;
+function bark(faction, type, force){
+  if (!voicesOn || !('speechSynthesis' in window)) return;
+  const now = performance.now();
+  if (!force && now - lastBarkAt < 2300) return;   // global throttle so it isn't constant chatter
+  const set = BARKS[faction]; if (!set) return;
+  const lines = set[type]; if (!lines || !lines.length) return;
+  const line = lines[Math.floor(Math.random()*lines.length)];
+  if (!line) return;
+  lastBarkAt = now;
+  if (playClip(faction, type)) return;   // prefer real recordings when available
+  if (!('speechSynthesis' in window)) return;
+  try{
+    window.speechSynthesis.resume();
+    const u = new SpeechSynthesisUtterance(line);
+    const v = pickVoiceFor(faction);
+    if (v){ u.voice = v; u.lang = v.lang; }
+    else { u.lang = VOICE_LANG[faction][0]; }
+    u.rate = faction==='de' ? 1.05 : 0.98;        // firm, not rushed
+    u.pitch = 0.7 + Math.random()*0.15;           // lower = gruffer, varied per man
+    u.volume = 1;
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+
+// ---------------- RECORDED VOICE CLIPS (LD-017) ----------------
+// Drop real recordings in an assets/voice/ folder and list them here; the game will
+// play them instead of the synth voice. Naming convention: <faction>_<type>_<n>.mp3
+// factions: us, uk, ca, de   types: assault, fire, spot, down, push, win
+// Example: VOICE_CLIPS.us.assault = ['us_assault_1.mp3','us_assault_2.mp3'];
+const VOICE_CLIPS = {
+  us:{assault:["us_assault_1.mp3","us_assault_2.mp3","us_assault_3.mp3","us_assault_4.mp3"],fire:["us_fire_1.mp3","us_fire_2.mp3","us_fire_3.mp3"],spot:["us_spot_1.mp3","us_spot_2.mp3","us_spot_3.mp3"],down:["us_down_1.mp3","us_down_2.mp3","us_down_3.mp3"],push:["us_push_1.mp3","us_push_2.mp3","us_push_3.mp3"],win:["us_win_1.mp3","us_win_2.mp3","us_win_3.mp3"]},
+  uk:{assault:["uk_assault_1.mp3","uk_assault_2.mp3","uk_assault_3.mp3","uk_assault_4.mp3"],fire:["uk_fire_1.mp3","uk_fire_2.mp3","uk_fire_3.mp3"],spot:["uk_spot_1.mp3","uk_spot_2.mp3","uk_spot_3.mp3"],down:["uk_down_1.mp3","uk_down_2.mp3","uk_down_3.mp3"],push:["uk_push_1.mp3","uk_push_2.mp3","uk_push_3.mp3"],win:["uk_win_1.mp3","uk_win_2.mp3","uk_win_3.mp3"]},
+  ca:{assault:["ca_assault_1.mp3","ca_assault_2.mp3","ca_assault_3.mp3","ca_assault_4.mp3"],fire:["ca_fire_1.mp3","ca_fire_2.mp3","ca_fire_3.mp3"],spot:["ca_spot_1.mp3","ca_spot_2.mp3","ca_spot_3.mp3"],down:["ca_down_1.mp3","ca_down_2.mp3","ca_down_3.mp3"],push:["ca_push_1.mp3","ca_push_2.mp3","ca_push_3.mp3"],win:["ca_win_1.mp3","ca_win_2.mp3","ca_win_3.mp3"]},
+  de:{assault:["de_assault_1.mp3","de_assault_2.mp3","de_assault_3.mp3"],fire:["de_fire_1.mp3","de_fire_2.mp3","de_fire_3.mp3"],spot:["de_spot_1.mp3","de_spot_2.mp3","de_spot_3.mp3"],down:["de_down_1.mp3","de_down_2.mp3","de_down_3.mp3"],push:["de_push_1.mp3","de_push_2.mp3","de_push_3.mp3"],win:[]}
+};
+const VOICE_CLIP_DIR = 'assets/voice/';
+const clipCache = {};
+let CLIPS_ENABLED = false;   // flipped to true once assets/voice/ mp3s are deployed
+function loadClips(){
+  if (!CLIPS_ENABLED) return;
+  for (const fac in VOICE_CLIPS){
+    for (const type in VOICE_CLIPS[fac]){
+      for (const file of VOICE_CLIPS[fac][type]){
+        if (clipCache[file]) continue;
+        try{
+          const a = new Audio(VOICE_CLIP_DIR + file);
+          a.preload = 'auto';
+          a.dataset.ok = '';
+          a.addEventListener('canplaythrough', ()=>{ a.dataset.ok = '1'; }, {once:true});
+          a.addEventListener('error', ()=>{ a.dataset.ok = '0'; }, {once:true});
+          clipCache[file] = a;
+        }catch(e){}
+      }
+    }
+  }
+}
+function playClip(faction, type){
+  if (!CLIPS_ENABLED) return false;
+  const list = (VOICE_CLIPS[faction] && VOICE_CLIPS[faction][type]) || [];
+  const ready = list.filter(f=>clipCache[f] && clipCache[f].dataset.ok!=='0');
+  if (!ready.length) return false;
+  const file = ready[Math.floor(Math.random()*ready.length)];
+  try{
+    const src = clipCache[file];
+    const node = src.cloneNode();      // allow overlapping playback
+    node.volume = 1;
+    node.play();
+    return true;
+  }catch(e){ return false; }
+}
+
+function alliedBark(type, force){ bark(alliedFaction(), type, force); }
+
+function speakLine(faction, text){
+  if (!voicesOn || !('speechSynthesis' in window)) return;
+  try{
+    window.speechSynthesis.resume();
+    const u = new SpeechSynthesisUtterance(text);
+    const v = pickVoiceFor(faction);
+    if (v){ u.voice = v; u.lang = v.lang; } else { u.lang = VOICE_LANG[faction][0]; }
+    u.rate = faction==='de'?1.06:1.02; u.pitch = 0.95; u.volume = 1;
+    window.speechSynthesis.speak(u);
+  }catch(e){}
+}
+function voiceDemo(){
+  speakLine('us','Move, move, move!');
+  speakLine('uk','Push on, lads! Up the beach!');
+  speakLine('de','Feuer frei! Sie kommen!');
+}
+
 // ---------------- UI HELPERS ----------------
 const $ = id => document.getElementById(id);
 function setObjective(t){ $('objective').textContent = t; }
@@ -1245,6 +1566,7 @@ $('histBtn').addEventListener('click', ()=>{
 let endSuccess = true;
 function showEnd(success){
   stopMusic();
+  if ('speechSynthesis' in window) try{window.speechSynthesis.cancel();}catch(e){}
   state = 'end'; endSuccess = success;
   $('endStamp').textContent = success ? 'MISSION ACCOMPLISHED' : 'KILLED IN ACTION';
   $('endStamp').style.color = success? 'var(--olive)' : 'var(--blood)';
@@ -1272,7 +1594,7 @@ function initMenu(){
     card.className = 'unit-card';
     card.innerHTML = '<div class="nation">'+u.nation+'</div><div class="uname">'+u.name+'</div><div class="obj">'+u.obj+'</div>';
     card.addEventListener('click', ()=>{
-      unit = u; audio();
+      unit = u; audio(); unlockSpeech();
       $('briefTitle').textContent = u.briefTitle;
       $('briefMeta').textContent = u.briefMeta;
       $('briefBody').innerHTML = u.brief;
@@ -1299,6 +1621,7 @@ function initMenu(){
   });
   $('deployBtn').addEventListener('click', ()=>{
     $('briefing').classList.add('hidden');
+    unlockSpeech();
     startAmbience();
     startMission();
   });
@@ -1307,6 +1630,20 @@ function initMenu(){
     musicOn = !musicOn;
     if (!musicOn) stopMusic();
     $('musicBtn').textContent = '♪ MUSIC: ' + (musicOn?'ON':'OFF');
+  });
+  $('voiceBtn').addEventListener('click', ()=>{
+    voicesOn = !voicesOn;
+    if (voicesOn){
+      unlockSpeech();
+      loadSpeechVoices();
+      // 3-accent demo so you can hear American, then British, then German
+      voiceDemo();
+      const gb = hasVoiceFor('uk');
+      $('voiceBtn').textContent = '🗣 VOICES: ON' + (gb?'':' (no UK voice)');
+    } else {
+      $('voiceBtn').textContent = '🗣 VOICES: OFF';
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+    }
   });
 }
 
@@ -1371,6 +1708,7 @@ function tryFire(){
 function hurtPlayer(d){
   player.hp -= d; player.lastHurt = 0;
   sfx('hurt');
+  if (Math.random()<0.18) alliedBark('fire');
   const v = $('dmgVignette');
   v.style.opacity = 0.95;
   clearTimeout(v._t); v._t = setTimeout(()=>{ v.style.opacity=0; }, 300);
@@ -1392,6 +1730,7 @@ function updateEnemies(dt){
   const firingAllowed = combatActive();
   const moving = (Math.abs(input.f-input.b)+Math.abs(input.r-input.l)+Math.abs(input.stick.x)+Math.abs(input.stick.y)) > 0.2;
   const covered = nearCover();
+  const pPos = player.pos;
   for (const e of world.enemies){
     if (!e.alive){
       if (e.dying>0){
@@ -1404,6 +1743,7 @@ function updateEnemies(dt){
     e.mesh.lookAt(player.pos.x, e.mesh.position.y, player.pos.z);
     const dx=player.pos.x-e.mesh.position.x, dz=player.pos.z-e.mesh.position.z;
     const dist = Math.sqrt(dx*dx+dz*dz);
+    if (dist > 170){ continue; }   // PERF: ignore very distant enemies this frame
     // movement: advance when far, strafe between cover when close
     if (!e.fixed && firingAllowed && dist < e.range+25 && dist > 3){
       let mvx, mvz, sp;
@@ -1431,6 +1771,7 @@ function updateEnemies(dt){
       const C = ENEMY_CLS[e.cls];
       e.fireTimer = C.interval[0] + Math.random()*(C.interval[1]-C.interval[0]);
       for (let b=0;b<C.burst;b++) setTimeout(()=>sfx('eshot'), b*70);
+      if (Math.random()<0.06) bark('de', Math.random()<0.5?'fire':'spot');
       const muzzle = e.mesh.position.clone().add(new THREE.Vector3(0,1.4,0));
       // LD-004: sometimes they shoot at your squad instead of you
       let tgtF = null;
@@ -1481,6 +1822,7 @@ function hurtFriendly(f){
     f.alive = false; f.dying = 0.6;
     toast('MAN DOWN — YOUR '+CLS_LABEL[f.cls]+' IS HIT!', 2.5);
     sfx('hurt');
+    alliedBark('down', true);
   }
 }
 function updateFriendlies(dt){
@@ -1494,20 +1836,74 @@ function updateFriendlies(dt){
       }
       continue;
     }
-    // medic heals you when close (LD-001)
-    if (f.cls==='medic' && player.hp<100 && player.hp>0){
-      const md = Math.hypot(f.mesh.position.x-player.pos.x, f.mesh.position.z-player.pos.z);
-      if (md < 5){
-        player.hp = Math.min(100, player.hp + 9*dt);
-        f.healTick -= dt;
-        if (f.healTick<=0){ f.healTick = 4; toast('Medic: "Hold still — patching you up!"', 1.6); }
-        updateHUD();
+    // --- MEDIC behaviour (LD-011): treat the most wounded nearby ally ---
+    let healTarget = null;
+    if (f.cls==='medic'){
+      // find the worst-off casualty within reach: downed buddies first, then hurt buddies, then you
+      let bestScore = -1;
+      for (const o of world.friendlies){
+        if (o===f) continue;
+        const downed = !o.alive;
+        const hurt = o.alive && o.hp < 3;
+        if (!downed && !hurt) continue;
+        const od = Math.hypot(o.mesh.position.x-f.mesh.position.x, o.mesh.position.z-f.mesh.position.z);
+        if (od > 40) continue;
+        const score = (downed?100:40) - od;           // prioritise reviving the downed, then proximity
+        if (score > bestScore){ bestScore = score; healTarget = o; }
+      }
+      const pHurt = player.hp<100 && player.hp>0;
+      if (pHurt){
+        const pd = Math.hypot(f.mesh.position.x-player.pos.x, f.mesh.position.z-player.pos.z);
+        const pScore = 30 - pd;
+        if (pScore > bestScore){ bestScore = pScore; healTarget = 'player'; }
       }
     }
-    // formation point behind/beside the player, rotated with player facing
+
+    // medic moves to a casualty; everyone else holds formation on the player
     const sy = Math.sin(player.yaw), cy = Math.cos(player.yaw);
-    const tx = player.pos.x + f.off.z*sy + f.off.x*cy;
-    const tz = player.pos.z + f.off.z*cy - f.off.x*sy;
+    let tx, tz;
+    if (healTarget && healTarget!=='player'){
+      tx = healTarget.mesh.position.x; tz = healTarget.mesh.position.z + 1.2;
+    } else if (healTarget==='player'){
+      tx = player.pos.x + f.off.z*sy + f.off.x*cy;
+      tz = player.pos.z + f.off.z*cy - f.off.x*sy;
+    } else {
+      tx = player.pos.x + f.off.z*sy + f.off.x*cy;
+      tz = player.pos.z + f.off.z*cy - f.off.x*sy;
+    }
+
+    // apply healing when the medic is close enough to the casualty
+    if (healTarget){
+      const isP = healTarget==='player';
+      const hx = isP? player.pos.x : healTarget.mesh.position.x;
+      const hz = isP? player.pos.z : healTarget.mesh.position.z;
+      const hd = Math.hypot(f.mesh.position.x-hx, f.mesh.position.z-hz);
+      if (hd < 3.0){
+        if (isP){
+          player.hp = Math.min(100, player.hp + 11*dt); updateHUD();
+          f.healTick -= dt;
+          if (f.healTick<=0){ f.healTick=4; toast('Medic: "Hold still — patching you up!"',1.6); }
+        } else if (!healTarget.alive){
+          // revive a downed man
+          healTarget.reviveT = (healTarget.reviveT||0) + dt;
+          if (healTarget.reviveT >= 2.5){
+            healTarget.alive = true; healTarget.hp = 2; healTarget.dying = 0;
+            healTarget.mesh.rotation.x = 0; healTarget.reviveT = 0;
+            const baseY = groundHeight(healTarget.mesh.position.x, healTarget.mesh.position.z);
+            healTarget.mesh.position.y = baseY;
+            toast('Medic revived your '+CLS_LABEL[healTarget.cls]+'!', 2.2);
+            sfx('ping');
+          }
+        } else {
+          // heal a hurt-but-standing buddy
+          healTarget.healAccum = (healTarget.healAccum||0) + dt;
+          if (healTarget.healAccum >= 2.0 && healTarget.hp < 3){
+            healTarget.hp += 1; healTarget.healAccum = 0;
+            toast('Medic patched up your '+CLS_LABEL[healTarget.cls]+'.', 1.8);
+          }
+        }
+      }
+    }
     const dx = tx - f.mesh.position.x, dz = tz - f.mesh.position.z;
     const d = Math.hypot(dx,dz);
     let movingNow = false;
@@ -1532,13 +1928,14 @@ function updateFriendlies(dt){
       f.mesh.lookAt(best.mesh.position.x, f.mesh.position.y, best.mesh.position.z);
       f.fireTimer -= dt;
       if (f.fireTimer<=0){
-        f.fireTimer = (f.cls==='mg' ? 1.3+Math.random()*1.6 : 2.2+Math.random()*2.5);
-        if (f.cls==='mg'){ sfx('eshot'); setTimeout(()=>sfx('eshot'),70); setTimeout(()=>sfx('eshot'),140); }
+        const burstCls = (f.cls==='mg'||f.cls==='hmg');
+        f.fireTimer = (burstCls ? 1.2+Math.random()*1.5 : 2.2+Math.random()*2.5);
+        if (burstCls){ sfx('eshot'); setTimeout(()=>sfx('eshot'),70); setTimeout(()=>sfx('eshot'),140); }
         else sfx('eshot');
         const muzzle = f.mesh.position.clone().add(new THREE.Vector3(0,1.4,0));
         const aim = best.mesh.position.clone().add(new THREE.Vector3((Math.random()-0.5)*1.5,1.1,(Math.random()-0.5)*1.5));
         tracer(muzzle, aim, 0xa8ffb0);
-        if (Math.random() < (f.cls==='mg' ? 0.3 : 0.22)){
+        if (Math.random() < ((f.cls==='mg'||f.cls==='hmg') ? 0.32 : 0.22)){
           best.hp -= 1;
           if (best.hp<=0){ best.alive=false; best.dying=0.6; world.kills++; toast('Your squad got one!',1.4); updateHUD(); }
         }
@@ -1669,7 +2066,10 @@ function updatePlayer(dt){
       world.disembark(world.boat);
       setObjective('GET OFF THE BEACH — REACH THE SHINGLE BANK AHEAD');
       toast('GO! GO! GO!');
-      spawnFriendly(-2.0, 2.0, 'mg'); spawnFriendly(2.0, 2.0, 'rifle'); spawnFriendly(0, 3.4, 'medic');
+      alliedBark('assault', true);
+      setTimeout(()=>bark('de','fire',true), 900);
+      setTimeout(()=>alliedBark('assault',true), 2000);
+      spawnFriendly(-2.2, 2.0, 'mg'); spawnFriendly(2.2, 2.0, 'rifle'); spawnFriendly(-3.4, 3.6, 'rifle'); spawnFriendly(3.4, 3.6, 'hmg'); spawnFriendly(0, 3.4, 'medic');
     }
     player.pos.set(world.boat.position.x, 1.9, world.boat.position.z+2.6);
   } else {
@@ -1712,7 +2112,8 @@ function updatePlayer(dt){
   fireCooldown = Math.max(0, fireCooldown-dt);
   recoil = Math.max(0, recoil-dt*5);
   if (viewmodel){
-    viewmodel.position.z = -0.7 + recoil*0.08;
+    const hz = viewmodel.userData.homeZ || -0.7;
+    viewmodel.position.z = hz + recoil*0.08;
     viewmodel.rotation.x = recoil*0.06;
     muzzleFlash.material.opacity = Math.max(0, muzzleFlash.material.opacity - dt*9);
   }
@@ -1742,6 +2143,7 @@ function updatePhases(dt){
         toast('SETTING BANGALORE... '+Math.ceil(3-world.timers.breach)+'s', 0.6);
         if (world.timers.breach>=3){
           sfx('boom');
+          alliedBark('push', true);
           scene.remove(world.wireGroup);
           world.breachMarker.visible=false;
           const wc = world.colliders.find(c=>c.id==='wire'); if (wc) wc.removed=true;
@@ -1756,6 +2158,7 @@ function updatePhases(dt){
       if (world.enemies.every(e=>!e.alive)){
         world.phase='exit';
         world.marker.visible = true;
+        alliedBark('win', true);
         showNote(unit.notes.bunkers, ()=>{
           setObjective('MOVE UP THE DRAW — REACH THE BLUE RALLY MARKER');
         });
@@ -1772,7 +2175,8 @@ function updatePhases(dt){
         world.phase='village';
         startMusic();
         world.marker.visible=false;
-        spawnFriendly(-2.0, 2.0, 'mg'); spawnFriendly(2.0, 2.0, 'rifle'); spawnFriendly(0, 3.4, 'medic');
+        bark('de','assault',true);
+        spawnFriendly(-2.2, 2.0, 'mg'); spawnFriendly(2.2, 2.0, 'rifle'); spawnFriendly(-3.4, 3.6, 'rifle'); spawnFriendly(3.4, 3.6, 'hmg'); spawnFriendly(0, 3.4, 'medic');
         toast('Click... click-clack. Three troopers fall in beside you.');
         showNote(unit.notes.regroup, ()=>{
           setObjective('CLEAR THE VILLAGE — DESTROY THE GARRISON');
@@ -1781,6 +2185,7 @@ function updatePhases(dt){
     } else if (world.phase==='village'){
       if (world.enemies.every(e=>!e.alive)){
         world.phase='church';
+        alliedBark('win', true);
         world.marker.position.set(0,0,132);
         world.marker.visible=true;
         showNote(unit.notes.village, ()=>{
@@ -1805,6 +2210,7 @@ function animate(){
     updateEnemies(dt);
     updateFriendlies(dt);
     updateBeachWave(dt);
+    updateWeather(dt);
     updatePhases(dt);
     updateTracers(dt);
     updatePuffs(dt);
@@ -1821,6 +2227,7 @@ function animate(){
 initRenderer();
 initInput();
 initMenu();
+loadClips();
 animate();
 
 </script>
